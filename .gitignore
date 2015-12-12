@@ -1,0 +1,6 @@
+# hidden files
+.*
+
+# binaires
+bin/
+
