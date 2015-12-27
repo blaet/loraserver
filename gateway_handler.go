@@ -85,7 +85,6 @@ func HandleGatewayPacket(p UDPPacket, sendChan chan UDPPacket, client *loracontr
 	default:
 		return fmt.Errorf("unknown packet type: %s", pt)
 	}
-	return nil
 }
 
 // HandleGatewayPullData handles PullData packets and returns them with
