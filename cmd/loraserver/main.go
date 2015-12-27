@@ -18,7 +18,7 @@ func init() {
 func run(c *cli.Context) {
 	// get control client with redis backend
 	log.WithField("server", c.String("redis-server")).Info("connecting to redis")
-	_, err := loracontrol.NewClient(
+	client, err := loracontrol.NewClient(
 		loracontrol.SetRedisBackend(c.String("redis-server"), c.String("redis-password")),
 	)
 	if err != nil {
@@ -39,7 +39,7 @@ func run(c *cli.Context) {
 
 	udpSendChan := make(chan loraserver.UDPPacket)
 	go loraserver.SendGatewayPackets(conn, udpSendChan)
-	loraserver.ReadGatewayPackets(conn, udpSendChan)
+	loraserver.ReadGatewayPackets(conn, udpSendChan, client)
 }
 
 func main() {

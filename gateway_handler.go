@@ -5,6 +5,7 @@ import (
 	"net"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/brocaar/loracontrol"
 	"github.com/brocaar/lorawan/semtech"
 )
 
@@ -36,7 +37,7 @@ func SendGatewayPackets(c *net.UDPConn, sendChan chan UDPPacket) error {
 }
 
 // ReadGatewayPackets reads incoming gateway packets from the given UDPConn.
-func ReadGatewayPackets(c *net.UDPConn, sendChan chan UDPPacket) error {
+func ReadGatewayPackets(c *net.UDPConn, sendChan chan UDPPacket, client *loracontrol.Client) error {
 	buf := make([]byte, 65507) // max udp data size
 	for {
 		i, addr, err := c.ReadFromUDP(buf)
@@ -47,7 +48,7 @@ func ReadGatewayPackets(c *net.UDPConn, sendChan chan UDPPacket) error {
 		copy(data, buf[0:i])
 		p := UDPPacket{Addr: addr, Data: data}
 		go func() {
-			if err := HandleGatewayPacket(p, sendChan); err != nil {
+			if err := HandleGatewayPacket(p, sendChan, client); err != nil {
 				log.WithFields(log.Fields{
 					"data": p.Data,
 					"addr": p.Addr,
@@ -58,7 +59,7 @@ func ReadGatewayPackets(c *net.UDPConn, sendChan chan UDPPacket) error {
 }
 
 // HandleGatewayPacket handles a single gateway packet.
-func HandleGatewayPacket(p UDPPacket, sendChan chan UDPPacket) error {
+func HandleGatewayPacket(p UDPPacket, sendChan chan UDPPacket, client *loracontrol.Client) error {
 	pt, err := semtech.GetPacketType(p.Data)
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -74,6 +75,7 @@ func HandleGatewayPacket(p UDPPacket, sendChan chan UDPPacket) error {
 			"addr": p.Addr,
 			"type": pt.String(),
 		}).Info("incoming gateway packet")
+		return HandleGatewayPushData(p, sendChan, client)
 	case semtech.PullData:
 		log.WithFields(log.Fields{
 			"addr": p.Addr,
@@ -98,7 +100,6 @@ func HandleGatewayPullData(p UDPPacket, sendChan chan UDPPacket) error {
 		ProtocolVersion: 1,
 		RandomToken:     packet.RandomToken,
 	}
-
 	bytes, err := ack.MarshalBinary()
 	if err != nil {
 		return err
@@ -107,5 +108,31 @@ func HandleGatewayPullData(p UDPPacket, sendChan chan UDPPacket) error {
 		Addr: p.Addr,
 		Data: bytes,
 	}
+	return nil
+}
+
+// HandleGatewayPushData handles PushData packets (node packets and / or
+// gateway stats) and returns them with a PushACK response.
+func HandleGatewayPushData(p UDPPacket, sendChan chan UDPPacket, client *loracontrol.Client) error {
+	packet := semtech.PushDataPacket{}
+	if err := packet.UnmarshalBinary(p.Data); err != nil {
+		return err
+	}
+
+	ack := semtech.PushACKPacket{
+		ProtocolVersion: 1,
+		RandomToken:     packet.RandomToken,
+	}
+	bytes, err := ack.MarshalBinary()
+	if err != nil {
+		return err
+	}
+	sendChan <- UDPPacket{
+		Addr: p.Addr,
+		Data: bytes,
+	}
+
+	// do something useful with the data
+
 	return nil
 }
