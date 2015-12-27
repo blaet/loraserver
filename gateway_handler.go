@@ -1,6 +1,7 @@
 package loraserver
 
 import (
+	"fmt"
 	"net"
 
 	log "github.com/Sirupsen/logrus"
@@ -38,14 +39,34 @@ func ReadGatewayPackets(c *net.UDPConn) error {
 func HandleGatewayPacket(p UDPPacket) error {
 	pt, err := semtech.GetPacketType(p.Data)
 	if err != nil {
+		log.WithFields(log.Fields{
+			"addr": p.Addr,
+			"data": p.Data,
+		}).Errorf("could get packet type: %s", err)
 		return err
 	}
 
-	log.WithFields(log.Fields{
-		"addr": p.Addr,
-		"data": p.Data,
-		"type": pt.String(),
-	}).Debug("incoming gateway packet")
-
+	switch pt {
+	case semtech.PushData:
+		packet := semtech.PushDataPacket{}
+		if err := packet.UnmarshalBinary(p.Data); err != nil {
+			return err
+		}
+		log.WithFields(log.Fields{
+			"addr": p.Addr,
+			"type": pt.String(),
+		}).Info("incoming gateway packet")
+	case semtech.PullData:
+		packet := semtech.PullDataPacket{}
+		if err := packet.UnmarshalBinary(p.Data); err != nil {
+			return err
+		}
+		log.WithFields(log.Fields{
+			"addr": p.Addr,
+			"type": pt.String(),
+		}).Info("incoming gateway packet")
+	default:
+		return fmt.Errorf("unknown packet type: %s", pt)
+	}
 	return nil
 }
