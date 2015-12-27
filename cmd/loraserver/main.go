@@ -37,7 +37,9 @@ func run(c *cli.Context) {
 	}
 	defer conn.Close()
 
-	loraserver.ReadGatewayPackets(conn)
+	udpSendChan := make(chan loraserver.UDPPacket)
+	go loraserver.SendGatewayPackets(conn, udpSendChan)
+	loraserver.ReadGatewayPackets(conn, udpSendChan)
 }
 
 func main() {
