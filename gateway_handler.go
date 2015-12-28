@@ -118,6 +118,7 @@ func HandleGatewayPushData(p UDPPacket, sendChan chan UDPPacket, client *loracon
 		return err
 	}
 
+	// ack the packet
 	ack := semtech.PushACKPacket{
 		ProtocolVersion: 1,
 		RandomToken:     packet.RandomToken,
@@ -131,7 +132,22 @@ func HandleGatewayPushData(p UDPPacket, sendChan chan UDPPacket, client *loracon
 		Data: bytes,
 	}
 
-	// do something useful with the data
+	// store the gateway stats
+	if packet.Payload.Stat != nil {
+		if err := updateGatewayStat(p.Addr, packet.GatewayMAC, packet.Payload.Stat, client); err != nil {
+			return err
+		}
+	}
 
 	return nil
+}
+
+// updateGatewayStat updates the gateway stats.
+func updateGatewayStat(addr *net.UDPAddr, mac [8]byte, stat *semtech.Stat, client *loracontrol.Client) error {
+	log.WithFields(log.Fields{
+		"addr": addr,
+		"mac":  mac,
+	}).Info("storing gateway stats")
+	gw := loracontrol.NewGatewayFromSemtech(addr, mac, stat)
+	return client.Gateway().Update(gw)
 }
