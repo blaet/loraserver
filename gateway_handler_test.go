@@ -118,5 +118,48 @@ func TestHandleGatewayPushData(t *testing.T) {
 				})
 			})
 		})
+
+		Convey("Given the PushData contains RX packets", func() {
+			packet := semtech.PushDataPacket{
+				ProtocolVersion: 1,
+				RandomToken:     12345,
+				GatewayMAC:      [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
+				Payload: semtech.PushDataPayload{
+					RXPK: []semtech.RXPK{
+						{
+							Time: semtech.CompactTime(time.Now().UTC()),
+							Tmst: 708016819,
+							Freq: 868.5,
+							Chan: 2,
+							RFCh: 1,
+							Stat: 1,
+							Modu: "LORA",
+							DatR: semtech.DatR{LoRa: "SF7BW125"},
+							CodR: "4/5",
+							RSSI: -51,
+							LSNR: 7,
+							Size: 16,
+							Data: "QAEBAQGAAAABVfdjR6YrSw==",
+						},
+					},
+				},
+			}
+
+			bytes, err := packet.MarshalBinary()
+			So(err, ShouldBeNil)
+			p.Data = bytes
+
+			Convey("When calling HandleGatewayPushData", func() {
+				err := HandleGatewayPushData(p, sendChan, client)
+				So(err, ShouldBeNil)
+
+				Convey("Then there should be one collected packet in the database", func() {
+					var packets []loracontrol.RXPacket
+					err = client.Storage().GetAll("packet.R6YrSw==", &packets)
+					So(err, ShouldBeNil)
+					So(packets, ShouldHaveLength, 1)
+				})
+			})
+		})
 	})
 }

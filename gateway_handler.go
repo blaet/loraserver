@@ -1,11 +1,13 @@
 package loraserver
 
 import (
+	"errors"
 	"fmt"
 	"net"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/brocaar/loracontrol"
+	"github.com/brocaar/lorawan"
 	"github.com/brocaar/lorawan/semtech"
 )
 
@@ -37,6 +39,8 @@ func SendGatewayPackets(c *net.UDPConn, sendChan chan UDPPacket) error {
 }
 
 // ReadGatewayPackets reads incoming gateway packets from the given UDPConn.
+// Only UDP related errors are returned. Errors returned by processing the
+// packet are logged as errors.
 func ReadGatewayPackets(c *net.UDPConn, sendChan chan UDPPacket, client *loracontrol.Client) error {
 	buf := make([]byte, 65507) // max udp data size
 	for {
@@ -139,6 +143,13 @@ func HandleGatewayPushData(p UDPPacket, sendChan chan UDPPacket, client *loracon
 		}
 	}
 
+	// collect received packets
+	for _, rxpk := range packet.Payload.RXPK {
+		if err := collectGatewayRXPacket(p.Addr, packet.GatewayMAC, &rxpk, client); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -150,4 +161,64 @@ func updateGatewayStat(addr *net.UDPAddr, mac [8]byte, stat *semtech.Stat, clien
 	}).Info("storing gateway stats")
 	gw := loracontrol.NewGatewayFromSemtech(addr, mac, stat)
 	return client.Gateway().Update(gw)
+}
+
+// collectGatewayRXPacket collects the incoming semtech.RXPK packet.
+func collectGatewayRXPacket(addr *net.UDPAddr, mac [8]byte, rxpk *semtech.RXPK, client *loracontrol.Client) error {
+	logFields := log.Fields{
+		"addr": addr,
+		"mac":  mac,
+		"data": rxpk.Data,
+	}
+	log.WithFields(logFields).Info("handling received node data")
+
+	// decode packet
+	rxPacket, err := loracontrol.NewRXPacketFromSemtech(mac, rxpk)
+	if err != nil {
+		return err
+	}
+
+	// check CRC
+	if rxPacket.RXInfo.CRCStatus != 1 {
+		log.WithFields(logFields).Warningf("packet CRC is invalid: %d", rxPacket.RXInfo.CRCStatus)
+		return errors.New("invalid CRC")
+	}
+
+	return client.Packet().CollectAndCallOnce(rxPacket, func(packets []loracontrol.RXPacket) error {
+		return handleRXPackets(packets, client)
+	})
+}
+
+// handleRXPackets handles the given slice of packets. Note that all all
+// packets in the slice are the same, but are received by different gateways.
+func handleRXPackets(packets []loracontrol.RXPacket, client *loracontrol.Client) error {
+	// there is not much to do when there are no packets
+	if len(packets) == 0 {
+		return errors.New("packet collector returned 0 packets")
+	}
+
+	var macs [][8]byte
+	for _, p := range packets {
+		macs = append(macs, p.RXInfo.MAC)
+	}
+	log.WithFields(log.Fields{
+		"macs":  macs,
+		"count": len(packets),
+	}).Info("packet(s) collected")
+
+	switch packets[0].PHYPayload.MHDR.MType {
+	case lorawan.JoinRequest:
+		log.Debug("join request")
+	case lorawan.UnconfirmedDataUp:
+		log.Debug("unconfirmed data up")
+	case lorawan.ConfirmedDataUp:
+		log.Debug("confirmed data up")
+	default:
+		log.WithFields(log.Fields{
+			"mtype": packets[0].PHYPayload.MHDR.MType,
+		}).Warning("unknown MType received")
+		return errors.New("unknown MType")
+	}
+
+	return nil
 }
