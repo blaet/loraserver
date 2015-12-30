@@ -1,6 +1,7 @@
 package loraserver
 
 import (
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -119,7 +120,7 @@ func TestHandleGatewayPushData(t *testing.T) {
 			})
 		})
 
-		Convey("Given the PushData contains RX packets", func() {
+		Convey("Given the PushData contains RX data packets", func() {
 			packet := semtech.PushDataPacket{
 				ProtocolVersion: 1,
 				RandomToken:     12345,
@@ -151,8 +152,12 @@ func TestHandleGatewayPushData(t *testing.T) {
 
 			Convey("When calling HandleGatewayPushData", func() {
 				err := HandleGatewayPushData(p, sendChan, client)
-				So(err, ShouldBeNil)
-
+				// to process the packet the server will lookup the node by its DevAddr
+				// which doesn't exists in this test. the processing behaviour is tested
+				// in a different testcase
+				Convey("Then it returns an error that the node could not be found", func() {
+					So(err, ShouldResemble, errors.New("could not find node in database"))
+				})
 				Convey("Then there should be one collected packet in the database", func() {
 					var packets []loracontrol.RXPacket
 					err = client.Storage().GetAll("packet.R6YrSw==", &packets)

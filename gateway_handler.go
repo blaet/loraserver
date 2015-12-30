@@ -1,13 +1,13 @@
 package loraserver
 
 import (
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/brocaar/loracontrol"
-	"github.com/brocaar/lorawan"
 	"github.com/brocaar/lorawan/semtech"
 )
 
@@ -54,8 +54,8 @@ func ReadGatewayPackets(c *net.UDPConn, sendChan chan UDPPacket, client *loracon
 		go func() {
 			if err := HandleGatewayPacket(p, sendChan, client); err != nil {
 				log.WithFields(log.Fields{
-					"data": p.Data,
-					"addr": p.Addr,
+					"udp_data_base64": base64.StdEncoding.EncodeToString(p.Data),
+					"addr":            p.Addr,
 				}).Errorf("could not handle packet: %s", err)
 			}
 		}()
@@ -184,41 +184,7 @@ func collectGatewayRXPacket(addr *net.UDPAddr, mac [8]byte, rxpk *semtech.RXPK, 
 		return errors.New("invalid CRC")
 	}
 
-	return client.Packet().CollectAndCallOnce(rxPacket, func(packets []loracontrol.RXPacket) error {
+	return client.Packet().CollectAndCallOnce(rxPacket, func(packets loracontrol.RXPackets) error {
 		return handleRXPackets(packets, client)
 	})
-}
-
-// handleRXPackets handles the given slice of packets. Note that all all
-// packets in the slice are the same, but are received by different gateways.
-func handleRXPackets(packets []loracontrol.RXPacket, client *loracontrol.Client) error {
-	// there is not much to do when there are no packets
-	if len(packets) == 0 {
-		return errors.New("packet collector returned 0 packets")
-	}
-
-	var macs [][8]byte
-	for _, p := range packets {
-		macs = append(macs, p.RXInfo.MAC)
-	}
-	log.WithFields(log.Fields{
-		"macs":  macs,
-		"count": len(packets),
-	}).Info("packet(s) collected")
-
-	switch packets[0].PHYPayload.MHDR.MType {
-	case lorawan.JoinRequest:
-		log.Debug("join request")
-	case lorawan.UnconfirmedDataUp:
-		log.Debug("unconfirmed data up")
-	case lorawan.ConfirmedDataUp:
-		log.Debug("confirmed data up")
-	default:
-		log.WithFields(log.Fields{
-			"mtype": packets[0].PHYPayload.MHDR.MType,
-		}).Warning("unknown MType received")
-		return errors.New("unknown MType")
-	}
-
-	return nil
 }
