@@ -65,9 +65,18 @@ func handleRXDataPacket(packets loracontrol.RXPackets, confirmed bool, client *l
 		return errors.New("the FCnt is invalid or too many dropped frames")
 	}
 
+	// validate MIC
+	micOK, err := packets[0].PHYPayload.ValidateMIC(node.NwkSKey)
+	if err != nil {
+		return err
+	}
+	if !micOK {
+		return errors.New("MIC is invalid")
+	}
+
 	// decrypt the FRMPayload with the NwkSKey when FPort != 0
 	if macPL.FPort == 0 {
-		if err := macPL.DecryptFRMPayload(node.NwkSKey[:]); err != nil {
+		if err := macPL.DecryptFRMPayload(node.NwkSKey); err != nil {
 			return err
 		}
 	}
