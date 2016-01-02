@@ -20,7 +20,7 @@ func (e APIError) write(w http.ResponseWriter) error {
 	return nil
 }
 
-// ApplicationCreateHandler is the API handler responsible for creating applications.
+// ApplicationCreateHandler is a http.Handler which creates applications.
 type ApplicationCreateHandler struct {
 	c *loracontrol.Client
 }
@@ -37,6 +37,40 @@ func (h *ApplicationCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	if err := h.c.Application().Create(app); err != nil {
+		if err == loracontrol.ErrObjectExists {
+			APIError{
+				Code:    http.StatusBadRequest,
+				Message: err.Error(),
+			}.write(w)
+			return
+		} else {
+			APIError{
+				Code:    http.StatusInternalServerError,
+				Message: err.Error(),
+			}.write(w)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusCreated)
+}
+
+// NodeCreateHandler is a http.Handler which creates nodes.
+type NodeCreateHandler struct {
+	c *loracontrol.Client
+}
+
+func (h *NodeCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	node := new(loracontrol.Node)
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(node); err != nil {
+		APIError{
+			Code:    http.StatusBadRequest,
+			Message: err.Error(),
+		}.write(w)
+		return
+	}
+	if err := h.c.Node().Create(node); err != nil {
 		if err == loracontrol.ErrObjectExists {
 			APIError{
 				Code:    http.StatusBadRequest,
