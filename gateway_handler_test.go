@@ -74,7 +74,10 @@ func TestHandleGatewayPushData(t *testing.T) {
 	c := getConfig()
 
 	Convey("Given a Client, UDPPacket and send channel", t, func() {
-		client, err := loracontrol.NewClient(loracontrol.SetRedisBackend(c.RedisServer, c.RedisPassword))
+		client, err := loracontrol.NewClient(
+			loracontrol.SetRedisBackend(c.RedisServer, c.RedisPassword),
+			loracontrol.SetHTTPApplicationBackend(),
+		)
 		So(err, ShouldBeNil)
 		So(client.Storage().FlushAll(), ShouldBeNil)
 		addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:1234")

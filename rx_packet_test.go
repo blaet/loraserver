@@ -2,6 +2,8 @@ package loraserver
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -10,11 +12,23 @@ import (
 	. "github.com/smartystreets/goconvey/convey"
 )
 
+type testApplicationHandler struct {
+	callCount int
+}
+
+func (h *testApplicationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	h.callCount = h.callCount + 1
+	w.WriteHeader(http.StatusOK)
+}
+
 func TestHandleRXPacketsData(t *testing.T) {
 	config := getConfig()
 
 	Convey("Given a packet with data 'abc123' and a Client connected to Redis", t, func() {
-		client, err := loracontrol.NewClient(loracontrol.SetRedisBackend(config.RedisServer, config.RedisPassword))
+		client, err := loracontrol.NewClient(
+			loracontrol.SetRedisBackend(config.RedisServer, config.RedisPassword),
+			loracontrol.SetHTTPApplicationBackend(),
+		)
 		So(err, ShouldBeNil)
 		So(client.Storage().FlushAll(), ShouldBeNil)
 
@@ -74,11 +88,27 @@ func TestHandleRXPacketsData(t *testing.T) {
 					DevAddr: [4]byte{1, 1, 1, 1},
 					NwkSKey: nwkSKey,
 					FCntUp:  9,
+					AppEUI:  [8]byte{2, 2, 2, 2, 2, 2, 2, 2},
 				}
 				So(client.Node().Create(node), ShouldBeNil)
 
-				Convey("Then handleRXPackets does not return an error", func() {
-					So(handleRXPackets(packets, client), ShouldBeNil)
+				Convey("Given an application handler is registered", func() {
+					handler := &testApplicationHandler{}
+					s := httptest.NewServer(handler)
+					app := &loracontrol.Application{
+						AppEUI:      node.AppEUI,
+						CallbackURL: s.URL,
+					}
+					So(client.Application().Create(app), ShouldBeNil)
+					So(handler.callCount, ShouldEqual, 0)
+
+					Convey("Then handleRXPackets does not return an error", func() {
+						So(handleRXPackets(packets, client), ShouldBeNil)
+
+						Convey("Then the application handler is called once", func() {
+							So(handler.callCount, ShouldEqual, 1)
+						})
+					})
 				})
 			})
 

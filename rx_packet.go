@@ -79,7 +79,11 @@ func handleRXDataPacket(packets loracontrol.RXPackets, confirmed bool, client *l
 		if err := macPL.DecryptFRMPayload(node.NwkSKey); err != nil {
 			return err
 		}
+
+		// todo: handle MAC commands in FRMPayload
+		return nil
 	}
 
-	return nil
+	// notify the application of the packets
+	return client.Application().Send(node.AppEUI, packets)
 }
