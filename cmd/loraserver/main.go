@@ -3,12 +3,14 @@ package main
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"os"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/brocaar/loracontrol"
 	"github.com/brocaar/loraserver"
 	"github.com/codegangsta/cli"
+	"github.com/gorilla/mux"
 )
 
 func init() {
@@ -20,6 +22,7 @@ func run(c *cli.Context) {
 	log.WithField("server", c.String("redis-server")).Info("connecting to redis")
 	client, err := loracontrol.NewClient(
 		loracontrol.SetRedisBackend(c.String("redis-server"), c.String("redis-password")),
+		loracontrol.SetHTTPApplicationBackend(),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -39,7 +42,14 @@ func run(c *cli.Context) {
 
 	udpSendChan := make(chan loraserver.UDPPacket)
 	go loraserver.SendGatewayPackets(conn, udpSendChan)
-	loraserver.ReadGatewayPackets(conn, udpSendChan, client)
+	go loraserver.ReadGatewayPackets(conn, udpSendChan, client)
+
+	// setup admin handler
+	r := mux.NewRouter().StrictSlash(true)
+	r.Handle("/api/application", &loraserver.ApplicationCreateHandler{Client: client}).Methods("POST")
+	r.Handle("/api/node", &loraserver.NodeCreateHandler{Client: client}).Methods("POST")
+	log.WithField("address", fmt.Sprintf("0.0.0.0:%d", c.Int("admin-port"))).Info("starting admin http api server")
+	log.Fatal(http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", c.Int("admin-port")), r))
 }
 
 func main() {
@@ -52,6 +62,12 @@ func main() {
 			Value:  1680,
 			Usage:  "port to bind to for incoming (UDP) gateway packets",
 			EnvVar: "GW_PORT",
+		},
+		cli.IntFlag{
+			Name:   "admin-port",
+			Value:  8000,
+			Usage:  "port to bind to for the admin api (HTTP)",
+			EnvVar: "ADMIN_PORT",
 		},
 		cli.StringFlag{
 			Name:   "redis-server",

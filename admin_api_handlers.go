@@ -1,8 +1,12 @@
 package loraserver
 
-import "encoding/json"
-import "github.com/brocaar/loracontrol"
-import "net/http"
+import (
+	"encoding/json"
+	"net/http"
+
+	log "github.com/Sirupsen/logrus"
+	"github.com/brocaar/loracontrol"
+)
 
 // APIError represents the API error model.
 type APIError struct {
@@ -51,6 +55,7 @@ func (h *ApplicationCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 			return
 		}
 	}
+	log.WithField("app_eui", app.AppEUI).Info("application created")
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -85,5 +90,6 @@ func (h *NodeCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	log.WithField("dev_addr", node.DevAddr).Info("node created")
 	w.WriteHeader(http.StatusCreated)
 }

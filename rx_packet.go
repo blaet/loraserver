@@ -62,6 +62,10 @@ func handleRXDataPacket(packets loracontrol.RXPackets, confirmed bool, client *l
 
 	// validate the FCnt
 	if !node.ValidateAndSetFCntUP(macPL.FHDR.FCnt) {
+		log.WithFields(log.Fields{
+			"packet_fcnt": macPL.FHDR.FCnt,
+			"server_fcnt": node.FCntUp,
+		}).Warning("invalid FCnt value")
 		return errors.New("the FCnt is invalid or too many dropped frames")
 	}
 
@@ -85,5 +89,9 @@ func handleRXDataPacket(packets loracontrol.RXPackets, confirmed bool, client *l
 	}
 
 	// notify the application of the packets
-	return client.Application().Send(node.AppEUI, packets)
+	err = client.Application().Send(node.AppEUI, packets)
+	if err == loracontrol.ErrObjectDoesNotExist {
+		return errors.New("the AppEUI does not exist")
+	}
+	return err
 }
