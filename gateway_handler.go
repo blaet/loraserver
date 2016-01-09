@@ -160,7 +160,7 @@ func updateGatewayStat(addr *net.UDPAddr, mac [8]byte, stat *semtech.Stat, clien
 		"mac":  mac,
 	}).Info("storing gateway stats")
 	gw := loracontrol.NewGatewayFromSemtech(addr, mac, stat)
-	return client.Gateway().Update(gw)
+	return client.Gateway().Upsert(gw)
 }
 
 // collectGatewayRXPacket collects the incoming semtech.RXPK packet.
