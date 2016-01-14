@@ -1,5 +1,8 @@
+# coverage
+coverage.out
+
 # hidden files
 .*
 
-# binaires
+# binaries
 bin/
