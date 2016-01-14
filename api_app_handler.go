@@ -51,13 +51,12 @@ func (h *ApplicationCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 				Message: err.Error(),
 			}.write(w)
 			return
-		} else {
-			APIError{
-				Code:    http.StatusInternalServerError,
-				Message: err.Error(),
-			}.write(w)
-			return
 		}
+		APIError{
+			Code:    http.StatusInternalServerError,
+			Message: err.Error(),
+		}.write(w)
+		return
 	}
 	log.WithField("app_eui", app.AppEUI).Info("application created")
 	w.WriteHeader(http.StatusCreated)
@@ -104,11 +103,11 @@ func (h *ApplicationObjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	switch r.Method {
 	case "GET":
-		h.ServeGET(w, r, appEUI)
+		h.serveGET(w, r, appEUI)
 	case "PUT":
-		h.ServePUT(w, r, appEUI)
+		h.servePUT(w, r, appEUI)
 	case "DELETE":
-		h.ServeDELETE(w, r, appEUI)
+		h.serveDELETE(w, r, appEUI)
 	default:
 		APIError{
 			Code:    http.StatusMethodNotAllowed,
@@ -117,7 +116,7 @@ func (h *ApplicationObjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (h *ApplicationObjectHandler) ServeGET(w http.ResponseWriter, r *http.Request, appEUI lorawan.EUI64) {
+func (h *ApplicationObjectHandler) serveGET(w http.ResponseWriter, r *http.Request, appEUI lorawan.EUI64) {
 	app, err := h.Client.Application().Get(appEUI)
 	if err != nil {
 		if err == loracontrol.ErrObjectDoesNotExist {
@@ -143,7 +142,7 @@ func (h *ApplicationObjectHandler) ServeGET(w http.ResponseWriter, r *http.Reque
 	}
 }
 
-func (h *ApplicationObjectHandler) ServePUT(w http.ResponseWriter, r *http.Request, appEUI lorawan.EUI64) {
+func (h *ApplicationObjectHandler) servePUT(w http.ResponseWriter, r *http.Request, appEUI lorawan.EUI64) {
 	app := new(loracontrol.Application)
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(app); err != nil {
@@ -180,7 +179,7 @@ func (h *ApplicationObjectHandler) ServePUT(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *ApplicationObjectHandler) ServeDELETE(w http.ResponseWriter, r *http.Request, appEUI lorawan.EUI64) {
+func (h *ApplicationObjectHandler) serveDELETE(w http.ResponseWriter, r *http.Request, appEUI lorawan.EUI64) {
 	err := h.Client.Application().Delete(appEUI)
 	if err != nil {
 		if err == loracontrol.ErrObjectDoesNotExist {
