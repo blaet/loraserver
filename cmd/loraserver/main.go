@@ -49,6 +49,7 @@ func run(c *cli.Context) {
 	r.Handle("/api/application", &loraserver.ApplicationCreateHandler{Client: client}).Methods("POST")
 	r.Handle("/api/application/{id}", &loraserver.ApplicationObjectHandler{Client: client}).Methods("GET", "PUT", "DELETE")
 	r.Handle("/api/node", &loraserver.NodeCreateHandler{Client: client}).Methods("POST")
+	r.Handle("/api/node/{id}", &loraserver.NodeObjectHandler{Client: client}).Methods("GET", "PUT", "DELETE")
 	log.WithField("address", fmt.Sprintf("0.0.0.0:%d", c.Int("admin-port"))).Info("starting admin http api server")
 	log.Fatal(http.ListenAndServe(fmt.Sprintf("0.0.0.0:%d", c.Int("admin-port")), r))
 }
