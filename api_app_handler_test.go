@@ -32,6 +32,15 @@ func TestApplicationCreateHandler(t *testing.T) {
 			jsonBytes, err := json.Marshal(app)
 			So(err, ShouldBeNil)
 
+			Convey("When posting invalid JSON", func() {
+				resp, err := http.Post(s.URL, "application/json", bytes.NewReader(jsonBytes[1:]))
+				So(err, ShouldBeNil)
+
+				Convey("Then a 401 status is returned", func() {
+					So(resp.StatusCode, ShouldEqual, http.StatusBadRequest)
+				})
+			})
+
 			Convey("When posting valid JSON", func() {
 				resp, err := http.Post(s.URL, "application/json", bytes.NewReader(jsonBytes))
 				So(err, ShouldBeNil)
@@ -74,6 +83,18 @@ func TestApplicationObjectHandler(t *testing.T) {
 				resp, err := http.Get(s.URL + "/0102030405060708")
 				So(err, ShouldBeNil)
 				So(resp.StatusCode, ShouldEqual, http.StatusNotFound)
+			})
+
+			Convey("Getting an invalid application id returns 401", func() {
+				resp, err := http.Get(s.URL + "/010203040506070")
+				So(err, ShouldBeNil)
+				So(resp.StatusCode, ShouldEqual, http.StatusBadRequest)
+			})
+
+			Convey("Getting an application with an id which is too short returns 401", func() {
+				resp, err := http.Get(s.URL + "/01020304050607")
+				So(err, ShouldBeNil)
+				So(resp.StatusCode, ShouldEqual, http.StatusBadRequest)
 			})
 
 			Convey("Given an application in the database", func() {
@@ -128,6 +149,14 @@ func TestApplicationObjectHandler(t *testing.T) {
 						So(dec.Decode(out), ShouldBeNil)
 						So(out, ShouldResemble, app)
 					})
+				})
+
+				Convey("Requesting with an invalid method returns 405", func() {
+					req, err := http.NewRequest("PATCH", s.URL+"/0102030405060708", nil)
+					So(err, ShouldBeNil)
+					resp, err := http.DefaultClient.Do(req)
+					So(err, ShouldBeNil)
+					So(resp.StatusCode, ShouldEqual, http.StatusMethodNotAllowed)
 				})
 			})
 		})

@@ -32,6 +32,15 @@ func TestNodeCreateHandler(t *testing.T) {
 			jsonBytes, err := json.Marshal(node)
 			So(err, ShouldBeNil)
 
+			Convey("When posting invalid JSON", func() {
+				resp, err := http.Post(s.URL, "application/json", bytes.NewReader(jsonBytes[1:]))
+				So(err, ShouldBeNil)
+
+				Convey("Then a 401 status is returned", func() {
+					So(resp.StatusCode, ShouldEqual, http.StatusBadRequest)
+				})
+			})
+
 			Convey("When posting valid JSON", func() {
 				resp, err := http.Post(s.URL, "application/json", bytes.NewReader(jsonBytes))
 				So(err, ShouldBeNil)
@@ -74,6 +83,18 @@ func TestNodeObjectHandler(t *testing.T) {
 				resp, err := http.Get(s.URL + "/01020304")
 				So(err, ShouldBeNil)
 				So(resp.StatusCode, ShouldEqual, http.StatusNotFound)
+			})
+
+			Convey("Getting an invalid node id returns 401", func() {
+				resp, err := http.Get(s.URL + "/0102030")
+				So(err, ShouldBeNil)
+				So(resp.StatusCode, ShouldEqual, http.StatusBadRequest)
+			})
+
+			Convey("Getting a node with an id which is too short returns 401", func() {
+				resp, err := http.Get(s.URL + "/010203")
+				So(err, ShouldBeNil)
+				So(resp.StatusCode, ShouldEqual, http.StatusBadRequest)
 			})
 
 			Convey("Given a node in the database", func() {
@@ -128,6 +149,34 @@ func TestNodeObjectHandler(t *testing.T) {
 						So(dec.Decode(out), ShouldBeNil)
 						So(out, ShouldResemble, node)
 					})
+
+					Convey("When updating with invalid JSON then a 401 is returned", func() {
+						req, err := http.NewRequest("PUT", s.URL+"/01020304", bytes.NewReader(b[1:]))
+						So(err, ShouldBeNil)
+						resp, err := http.DefaultClient.Do(req)
+						So(err, ShouldBeNil)
+						So(resp.StatusCode, ShouldEqual, http.StatusBadRequest)
+					})
+
+					Convey("When the id in the url does not match the id in the body then a 401 is returned", func() {
+						node.DevAddr = [4]byte{1, 2, 3, 3}
+						b, err := json.Marshal(node)
+						So(err, ShouldBeNil)
+						req, err := http.NewRequest("PUT", s.URL+"/01020304", bytes.NewReader(b))
+						So(err, ShouldBeNil)
+						resp, err := http.DefaultClient.Do(req)
+						So(err, ShouldBeNil)
+						So(resp.StatusCode, ShouldEqual, http.StatusBadRequest)
+					})
+
+				})
+
+				Convey("Requesting with an invalid method returns 405", func() {
+					req, err := http.NewRequest("PATCH", s.URL+"/01020304", nil)
+					So(err, ShouldBeNil)
+					resp, err := http.DefaultClient.Do(req)
+					So(err, ShouldBeNil)
+					So(resp.StatusCode, ShouldEqual, http.StatusMethodNotAllowed)
 				})
 			})
 		})
