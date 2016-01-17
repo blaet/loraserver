@@ -2,13 +2,13 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"os"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/brocaar/loracontrol"
 	"github.com/brocaar/loraserver"
+	"github.com/brocaar/loraserver/gateway/semtech"
 	"github.com/codegangsta/cli"
 	"github.com/gorilla/mux"
 )
@@ -18,31 +18,22 @@ func init() {
 }
 
 func run(c *cli.Context) {
+	// start gateway backend
+	gw, err := semtech.NewBackend(c.Int("gw-port"))
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	// get control client with redis backend
 	log.WithField("server", c.String("redis-server")).Info("connecting to redis")
 	client, err := loracontrol.NewClient(
-		loracontrol.SetRedisBackend(c.String("redis-server"), c.String("redis-password")),
-		loracontrol.SetHTTPApplicationBackend(),
+		loracontrol.SetStorageBackend(loracontrol.NewRedisBackend(c.String("redis-server"), c.String("redis-password"))),
+		loracontrol.SetGatewayBackend(gw),
+		loracontrol.SetApplicationBackend(&loracontrol.DummyApplicationBackend{}),
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	// setup UDP socket for gateway data
-	addr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("0.0.0.0:%d", c.Int("gw-port")))
-	if err != nil {
-		log.Fatal(err)
-	}
-	log.WithField("address", addr).Info("starting gateway udp listener")
-	conn, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer conn.Close()
-
-	udpSendChan := make(chan loraserver.UDPPacket)
-	go loraserver.SendGatewayPackets(conn, udpSendChan)
-	go loraserver.ReadGatewayPackets(conn, udpSendChan, client)
 
 	// setup admin handler
 	r := mux.NewRouter().StrictSlash(true)

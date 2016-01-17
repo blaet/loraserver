@@ -17,8 +17,9 @@ func TestApplicationCreateHandler(t *testing.T) {
 
 	Convey("Given a Client connected to a clean Redis database", t, func() {
 		c, err := loracontrol.NewClient(
-			loracontrol.SetRedisBackend(conf.RedisServer, conf.RedisPassword),
-			loracontrol.SetHTTPApplicationBackend(),
+			loracontrol.SetStorageBackend(loracontrol.NewRedisBackend(conf.RedisServer, conf.RedisPassword)),
+			loracontrol.SetApplicationBackend(&loracontrol.DummyApplicationBackend{}),
+			loracontrol.SetGatewayBackend(&loracontrol.DummyGatewayBackend{}),
 		)
 		So(err, ShouldBeNil)
 		So(c.Storage().FlushAll(), ShouldBeNil)
@@ -26,8 +27,7 @@ func TestApplicationCreateHandler(t *testing.T) {
 		Convey("Given a test http server serving the handler and test JSON", func() {
 			s := httptest.NewServer(&ApplicationCreateHandler{c})
 			app := &loracontrol.Application{
-				AppEUI:      [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
-				CallbackURL: "http://foo.bar/",
+				AppEUI: [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 			}
 			jsonBytes, err := json.Marshal(app)
 			So(err, ShouldBeNil)
@@ -68,8 +68,9 @@ func TestApplicationObjectHandler(t *testing.T) {
 
 	Convey("Given a Client connected to a clean Redis database", t, func() {
 		c, err := loracontrol.NewClient(
-			loracontrol.SetRedisBackend(conf.RedisServer, conf.RedisPassword),
-			loracontrol.SetHTTPApplicationBackend(),
+			loracontrol.SetStorageBackend(loracontrol.NewRedisBackend(conf.RedisServer, conf.RedisPassword)),
+			loracontrol.SetApplicationBackend(&loracontrol.DummyApplicationBackend{}),
+			loracontrol.SetGatewayBackend(&loracontrol.DummyGatewayBackend{}),
 		)
 		So(err, ShouldBeNil)
 		So(c.Storage().FlushAll(), ShouldBeNil)
@@ -99,8 +100,7 @@ func TestApplicationObjectHandler(t *testing.T) {
 
 			Convey("Given an application in the database", func() {
 				app := &loracontrol.Application{
-					AppEUI:      [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
-					CallbackURL: "http://foo.bar/",
+					AppEUI: [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 				}
 				So(c.Application().Create(app), ShouldBeNil)
 
@@ -130,7 +130,9 @@ func TestApplicationObjectHandler(t *testing.T) {
 				})
 
 				Convey("When updating the application", func() {
-					app.CallbackURL = "http://example.com/"
+					app.Config = map[string]interface{}{
+						"CallbackURL": "http://foo.bar/",
+					}
 					b, err := json.Marshal(app)
 					So(err, ShouldBeNil)
 					req, err := http.NewRequest("PUT", s.URL+"/0102030405060708", bytes.NewReader(b))

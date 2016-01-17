@@ -17,8 +17,9 @@ func TestNodeCreateHandler(t *testing.T) {
 
 	Convey("Given a client connected to a clean Redis database", t, func() {
 		c, err := loracontrol.NewClient(
-			loracontrol.SetRedisBackend(conf.RedisServer, conf.RedisPassword),
-			loracontrol.SetHTTPApplicationBackend(),
+			loracontrol.SetStorageBackend(loracontrol.NewRedisBackend(conf.RedisServer, conf.RedisPassword)),
+			loracontrol.SetApplicationBackend(&loracontrol.DummyApplicationBackend{}),
+			loracontrol.SetGatewayBackend(&loracontrol.DummyGatewayBackend{}),
 		)
 		So(err, ShouldBeNil)
 		So(c.Storage().FlushAll(), ShouldBeNil)
@@ -68,8 +69,9 @@ func TestNodeObjectHandler(t *testing.T) {
 
 	Convey("Given a Client connected to a clean Redis database", t, func() {
 		c, err := loracontrol.NewClient(
-			loracontrol.SetRedisBackend(conf.RedisServer, conf.RedisPassword),
-			loracontrol.SetHTTPApplicationBackend(),
+			loracontrol.SetStorageBackend(loracontrol.NewRedisBackend(conf.RedisServer, conf.RedisPassword)),
+			loracontrol.SetApplicationBackend(&loracontrol.DummyApplicationBackend{}),
+			loracontrol.SetGatewayBackend(&loracontrol.DummyGatewayBackend{}),
 		)
 		So(err, ShouldBeNil)
 		So(c.Storage().FlushAll(), ShouldBeNil)
