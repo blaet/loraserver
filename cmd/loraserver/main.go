@@ -8,6 +8,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/brocaar/loracontrol"
 	"github.com/brocaar/loraserver"
+	apphttp "github.com/brocaar/loraserver/application/http"
 	"github.com/brocaar/loraserver/gateway/semtech"
 	"github.com/codegangsta/cli"
 	"github.com/gorilla/mux"
@@ -29,7 +30,7 @@ func run(c *cli.Context) {
 	client, err := loracontrol.NewClient(
 		loracontrol.SetStorageBackend(loracontrol.NewRedisBackend(c.String("redis-server"), c.String("redis-password"))),
 		loracontrol.SetGatewayBackend(gw),
-		loracontrol.SetApplicationBackend(&loracontrol.DummyApplicationBackend{}),
+		loracontrol.SetApplicationBackend(&apphttp.Backend{}),
 	)
 	if err != nil {
 		log.Fatal(err)
