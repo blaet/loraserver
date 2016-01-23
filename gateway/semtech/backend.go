@@ -204,7 +204,7 @@ func (b *Backend) handlePushData(addr *net.UDPAddr, data []byte) error {
 	return nil
 }
 
-func (b *Backend) updateStat(addr *net.UDPAddr, mac [8]byte, stat *Stat) error {
+func (b *Backend) updateStat(addr *net.UDPAddr, mac lorawan.EUI64, stat *Stat) error {
 	log.WithFields(log.Fields{
 		"addr": addr,
 		"mac":  mac,
@@ -213,7 +213,7 @@ func (b *Backend) updateStat(addr *net.UDPAddr, mac [8]byte, stat *Stat) error {
 	return b.client.Gateway().Upsert(gw)
 }
 
-func (b *Backend) collectRXPacket(addr *net.UDPAddr, mac [8]byte, rxpk *RXPK) error {
+func (b *Backend) collectRXPacket(addr *net.UDPAddr, mac lorawan.EUI64, rxpk *RXPK) error {
 	logFields := log.Fields{
 		"addr": addr,
 		"mac":  mac,
@@ -252,7 +252,7 @@ func newGatewayFromSemtech(addr *net.UDPAddr, mac lorawan.EUI64, stat *Stat) *lo
 	}
 }
 
-func newRXPacketFromSemtech(mac [8]byte, rxpk *RXPK) (*loracontrol.RXPacket, error) {
+func newRXPacketFromSemtech(mac lorawan.EUI64, rxpk *RXPK) (*loracontrol.RXPacket, error) {
 	// this is always an uplink payload
 	phy := lorawan.NewPHYPayload(true)
 	bytes, err := base64.StdEncoding.DecodeString(rxpk.Data)
