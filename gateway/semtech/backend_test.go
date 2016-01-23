@@ -211,6 +211,9 @@ func TestNewGatewayFromSemtech(t *testing.T) {
 					UpstreamPacketsForwarded:    3,
 					UpstreamDatagramsACKRate:    33.3,
 					DownstreamDatagramsReceived: 4,
+					Config: GatewayConfig{
+						UDPAddr: addr,
+					},
 				})
 			})
 		})
