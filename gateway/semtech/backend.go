@@ -2,7 +2,6 @@ package semtech
 
 import (
 	"encoding/base64"
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"net"
@@ -14,18 +13,9 @@ import (
 	"github.com/brocaar/lorawan"
 )
 
-func init() {
-	gob.Register(GatewayConfig{})
-}
-
 type udpPacket struct {
 	data []byte
 	addr *net.UDPAddr
-}
-
-// GatewayConfig holds the configuration of a Semtech gateway.
-type GatewayConfig struct {
-	UDPAddr *net.UDPAddr
 }
 
 // NewBackend creates a new Backend.
@@ -259,8 +249,10 @@ func newGatewayFromSemtech(addr *net.UDPAddr, mac lorawan.EUI64, stat *Stat) *lo
 		UpstreamPacketsForwarded:    uint(stat.RXFW),
 		UpstreamDatagramsACKRate:    stat.ACKR,
 		DownstreamDatagramsReceived: uint(stat.DWNb),
-		Config: GatewayConfig{
-			UDPAddr: addr,
+		Config: loracontrol.PropertyBag{
+			String: map[string]string{
+				"udp_addr": addr.String(),
+			},
 		},
 	}
 }

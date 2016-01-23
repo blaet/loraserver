@@ -130,8 +130,10 @@ func TestApplicationObjectHandler(t *testing.T) {
 				})
 
 				Convey("When updating the application", func() {
-					app.Config = map[string]interface{}{
-						"CallbackURL": "http://foo.bar/",
+					app.Config = loracontrol.PropertyBag{
+						String: map[string]string{
+							"callback_url": "http://foo.bar/",
+						},
 					}
 					b, err := json.Marshal(app)
 					So(err, ShouldBeNil)
