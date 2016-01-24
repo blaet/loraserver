@@ -24,6 +24,7 @@ func run(c *cli.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	defer gw.Close()
 
 	// get control client with redis backend
 	log.WithField("server", c.String("redis-server")).Info("connecting to redis")
@@ -35,6 +36,8 @@ func run(c *cli.Context) {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	go loraserver.HandleGatewayPackets(client.Gateway().Receive(), client)
 
 	// setup admin handler
 	r := mux.NewRouter().StrictSlash(true)
