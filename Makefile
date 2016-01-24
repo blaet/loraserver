@@ -16,4 +16,4 @@ test:
 		golint $$pkg ; \
 	done
 	@go vet $(PKGS)
-	@go test -v $(PKGS) -cover
+	@go test -v -p 1 $(PKGS) -cover
