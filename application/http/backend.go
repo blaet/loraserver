@@ -18,11 +18,6 @@ type Backend struct {
 	client *loracontrol.Client
 }
 
-// Config provides the application configuration.
-type Config struct {
-	CallbackURL string `json:"callback_url"`
-}
-
 // RXPayload is the payload sent to the application backend.
 type RXPayload struct {
 	Time         time.Time `json:"time"`
@@ -42,9 +37,9 @@ func (b *Backend) Send(appEUI lorawan.EUI64, packets loracontrol.RXPackets) erro
 	if err != nil {
 		return err
 	}
-	callbackURL, ok := app.Config.String["callback_url"]
+	callbackURL, ok := app.Config.String["callbackURL"]
 	if !ok {
-		return errors.New("application/http: application config does not contain callback_url")
+		return errors.New("application/http: application config does not contain callbackURL")
 	}
 	if len(packets) == 0 {
 		return errors.New("application/http: packets should have length > 0")

@@ -125,7 +125,7 @@ func TestBackend(t *testing.T) {
 						AppEUI: lorawan.EUI64{1, 2, 3, 4, 5, 6, 7, 8},
 						Config: loracontrol.PropertyBag{
 							String: map[string]string{
-								"callback_url": s.URL,
+								"callbackURL": s.URL,
 							},
 						},
 					}
