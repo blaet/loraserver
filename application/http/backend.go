@@ -14,6 +14,16 @@ import (
 )
 
 // Backend implements a HTTP application backend.
+// It expects that the "callbackURL" config string is set to the url
+// to which it should send the payload for the application. E.g.
+// 		loracontrol.Application{
+//			...
+//			Config: loracontrol.PropertyBag{
+//				String: map[string]string{
+//					"callbackURL": "http://example.com/handler",
+//				},
+//			},
+//		}
 type Backend struct {
 	client *loracontrol.Client
 }
