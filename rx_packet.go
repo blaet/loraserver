@@ -75,14 +75,18 @@ func handleRXDataPacket(rxPackets loracontrol.RXPackets, client *loracontrol.Cli
 		return err
 	}
 
-	// validate the FCnt
-	if !node.ValidateAndSetFCntUP(macPL.FHDR.FCnt) {
+	// validate and get the full FCnt
+	fullFCnt, ok := node.ValidateAndGetFullFCntUp(macPL.FHDR.FCnt)
+	if !ok {
 		log.WithFields(log.Fields{
 			"packet_fcnt": macPL.FHDR.FCnt,
 			"server_fcnt": node.FCntUp,
 		}).Warning("invalid FCnt")
 		return errors.New("invalid FCnt or too many dropped frames")
 	}
+
+	// set the full 32 bit FCnt
+	macPL.FHDR.FCnt = fullFCnt
 
 	// validate MIC
 	micOK, err := rxPacket.PHYPayload.ValidateMIC(node.NwkSKey)
@@ -91,6 +95,12 @@ func handleRXDataPacket(rxPackets loracontrol.RXPackets, client *loracontrol.Cli
 	}
 	if !micOK {
 		return errors.New("invalid MIC")
+	}
+
+	// increment counter
+	node.FCntUp = node.FCntUp + 1
+	if err := client.Node().Update(node); err != nil {
+		return err
 	}
 
 	// decrypt FRMPayload with NwkSKey when FPort == 0

@@ -92,7 +92,7 @@ func TestHandleGatewayPackets(t *testing.T) {
 				node := &loracontrol.Node{
 					DevAddr: devAddr,
 					NwkSKey: nwkSKey,
-					FCntUp:  9,
+					FCntUp:  10,
 					AppEUI:  appEUI,
 				}
 				So(client.Node().Create(node), ShouldBeNil)
@@ -110,6 +110,12 @@ func TestHandleGatewayPackets(t *testing.T) {
 						Convey("Then the app backend Send was called once", func() {
 							So(appBackend.callCount, ShouldEqual, 1)
 						})
+
+						Convey("The FCntUp on the node is incremented", func() {
+							n, err := client.Node().Get(node.DevAddr)
+							So(err, ShouldBeNil)
+							So(n.FCntUp, ShouldEqual, node.FCntUp+1)
+						})
 					})
 
 					Convey("When calling HandleGatewayPackets", func() {
@@ -126,7 +132,7 @@ func TestHandleGatewayPackets(t *testing.T) {
 					})
 
 					Convey("When the FCnt is invalid", func() {
-						node.FCntUp = 10
+						node.FCntUp = 11
 						So(client.Node().Update(node), ShouldBeNil)
 
 						Convey("Then handleCollectedPackets returns an invalid FCnt error", func() {
