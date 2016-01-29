@@ -1,6 +1,8 @@
 package semtech
 
 import (
+	"encoding/base64"
+	"errors"
 	"net"
 	"os"
 	"testing"
@@ -13,7 +15,7 @@ import (
 )
 
 func init() {
-	log.SetLevel(log.PanicLevel)
+	log.SetLevel(log.ErrorLevel)
 }
 
 type config struct {
@@ -41,20 +43,20 @@ func TestBackend(t *testing.T) {
 	c := getConfig()
 
 	Convey("Given a Client with Redis backend and an empty database", t, func() {
-		client, err := loracontrol.NewClient(
-			loracontrol.SetStorageBackend(loracontrol.NewRedisBackend(c.RedisServer, c.RedisPassword)),
-			loracontrol.SetApplicationBackend(&loracontrol.DummyApplicationBackend{}),
-			loracontrol.SetGatewayBackend(&loracontrol.DummyGatewayBackend{}),
-		)
-		So(err, ShouldBeNil)
-		So(client.Storage().FlushAll(), ShouldBeNil)
 		addr, err := net.ResolveUDPAddr("udp", "127.0.0.1:8123")
 		So(err, ShouldBeNil)
 
 		backend, err := NewBackend(addr.Port)
 		So(err, ShouldBeNil)
-		backend.SetClient(client)
 		defer backend.Close()
+
+		client, err := loracontrol.NewClient(
+			loracontrol.SetStorageBackend(loracontrol.NewRedisBackend(c.RedisServer, c.RedisPassword)),
+			loracontrol.SetApplicationBackend(&loracontrol.DummyApplicationBackend{}),
+			loracontrol.SetGatewayBackend(backend),
+		)
+		So(err, ShouldBeNil)
+		So(client.Storage().FlushAll(), ShouldBeNil)
 
 		Convey("Given a UDP socket", func() {
 			gwAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:0")
@@ -66,9 +68,8 @@ func TestBackend(t *testing.T) {
 
 			Convey("When sending a PULL_DATA packet", func() {
 				p := PullDataPacket{
-					ProtocolVersion: 1,
-					RandomToken:     1234,
-					GatewayMAC:      [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
+					RandomToken: 1234,
+					GatewayMAC:  [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 				}
 				b, err := p.MarshalBinary()
 				So(err, ShouldBeNil)
@@ -87,9 +88,8 @@ func TestBackend(t *testing.T) {
 
 			Convey("When sending a PUSH_DATA packet with stats", func() {
 				p := PushDataPacket{
-					ProtocolVersion: 1,
-					RandomToken:     1234,
-					GatewayMAC:      [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
+					RandomToken: 1234,
+					GatewayMAC:  [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 					Payload: PushDataPayload{
 						Stat: &Stat{
 							Time: ExpandedTime(time.Time{}.UTC()),
@@ -127,9 +127,8 @@ func TestBackend(t *testing.T) {
 
 			Convey("When sending a PUSH_DATA packet with RXPK", func() {
 				p := PushDataPacket{
-					ProtocolVersion: 1,
-					RandomToken:     1234,
-					GatewayMAC:      [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
+					RandomToken: 1234,
+					GatewayMAC:  [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 					Payload: PushDataPayload{
 						RXPK: []RXPK{
 							{
@@ -172,6 +171,92 @@ func TestBackend(t *testing.T) {
 					So(err, ShouldBeNil)
 
 					So(&rxpk, ShouldResemble, rxpk2)
+				})
+			})
+
+			Convey("Given an TXPacket", func() {
+				var nwkSKey lorawan.AES128Key
+				macPL := lorawan.NewMACPayload(false)
+				phy := lorawan.NewPHYPayload(false)
+				phy.MACPayload = macPL
+				phy.MHDR = lorawan.MHDR{
+					MType: lorawan.UnconfirmedDataDown,
+					Major: lorawan.LoRaWANR1,
+				}
+				So(phy.SetMIC(nwkSKey), ShouldBeNil)
+
+				txPacket := loracontrol.TXPacket{
+					TXInfo: loracontrol.TXInfo{
+						MAC:         lorawan.EUI64{1, 2, 3, 4, 5, 6, 7, 8},
+						Immediately: true,
+						Timestamp:   12345,
+						Frequency:   123.45,
+						RFChain:     1,
+						Power:       12,
+						DataRate: loracontrol.DataRate{
+							LoRa: "SF12BW500",
+						},
+						CodeRate:           "4/5",
+						FrequencyDeviation: 300,
+						DisableCRC:         true,
+					},
+					PHYPayload: phy,
+				}
+
+				Convey("When sending the packet to the gateway, and the gateway does not exist", func() {
+					err := client.Gateway().Send(txPacket)
+					Convey("Then Send returns an gateway not found error", func() {
+						So(err, ShouldResemble, errors.New("gateway/semtech: gateway does not exist"))
+					})
+				})
+
+				Convey("Given a matching gateway in the database", func() {
+					gw := &loracontrol.Gateway{
+						MAC: lorawan.EUI64{1, 2, 3, 4, 5, 6, 7, 8},
+						Config: loracontrol.PropertyBag{
+							String: map[string]string{
+								"udp_addr": conn.LocalAddr().String(),
+							},
+						},
+					}
+					So(client.Gateway().Upsert(gw), ShouldBeNil)
+
+					Convey("When sending the packet to the gateway", func() {
+						So(client.Gateway().Send(txPacket), ShouldBeNil)
+
+						Convey("Then the correct data is received by the gateway", func() {
+							buf := make([]byte, 65507)
+							i, _, err := conn.ReadFromUDP(buf)
+							So(i, ShouldBeGreaterThan, 0)
+							pullResp := PullRespPacket{}
+							So(pullResp.UnmarshalBinary(buf[:i]), ShouldBeNil)
+
+							b, err := phy.MarshalBinary()
+							So(err, ShouldBeNil)
+
+							So(pullResp, ShouldResemble, PullRespPacket{
+								Payload: PullRespPayload{
+									TXPK: TXPK{
+										Imme: true,
+										Tmst: 12345,
+										Freq: 123.45,
+										RFCh: 1,
+										Powe: 12,
+										Modu: "LORA",
+										DatR: DatR{
+											LoRa: "SF12BW500",
+										},
+										CodR: "4/5",
+										FDev: 300,
+										NCRC: true,
+										Size: uint16(len(b)),
+										Data: base64.StdEncoding.EncodeToString(b),
+										IPol: true,
+									},
+								},
+							})
+						})
+					})
 				})
 			})
 		})

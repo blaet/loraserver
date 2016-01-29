@@ -88,6 +88,49 @@ func (b *Backend) Receive() chan loracontrol.RXPacket {
 	return b.rxChan
 }
 
+// Send sends the given TXPacket to the gateway.
+func (b *Backend) Send(txPacket loracontrol.TXPacket) error {
+	gw, err := b.client.Gateway().Get(txPacket.TXInfo.MAC)
+	if err != nil {
+		if err == loracontrol.ErrObjectDoesNotExist {
+			return errors.New("gateway/semtech: gateway does not exist")
+		}
+		return err
+	}
+
+	addrStr, ok := gw.Config.String["udp_addr"]
+	if !ok {
+		return errors.New("gateway/semtech: gateway does not have udp_addr config string")
+	}
+
+	addr, err := net.ResolveUDPAddr("udp", addrStr)
+	if err != nil {
+		return err
+	}
+
+	txpk, err := newTXPKFromTXPacket(txPacket)
+	if err != nil {
+		return err
+	}
+
+	pullResp := PullRespPacket{
+		Payload: PullRespPayload{
+			TXPK: txpk,
+		},
+	}
+
+	data, err := pullResp.MarshalBinary()
+	if err != nil {
+		return err
+	}
+
+	b.sendChan <- udpPacket{
+		data: data,
+		addr: addr,
+	}
+	return nil
+}
+
 func (b *Backend) readPackets() error {
 	buf := make([]byte, 65507) // max udp data size
 	for {
@@ -153,8 +196,7 @@ func (b *Backend) handlePullData(addr *net.UDPAddr, data []byte) error {
 		return err
 	}
 	ack := PullACKPacket{
-		ProtocolVersion: 1,
-		RandomToken:     p.RandomToken,
+		RandomToken: p.RandomToken,
 	}
 	bytes, err := ack.MarshalBinary()
 	if err != nil {
@@ -175,8 +217,7 @@ func (b *Backend) handlePushData(addr *net.UDPAddr, data []byte) error {
 
 	// ack the packet
 	ack := PushACKPacket{
-		ProtocolVersion: 1,
-		RandomToken:     p.RandomToken,
+		RandomToken: p.RandomToken,
 	}
 	bytes, err := ack.MarshalBinary()
 	if err != nil {
@@ -273,7 +314,7 @@ func newRXPacketFromSemtech(mac lorawan.EUI64, rxpk *RXPK) (*loracontrol.RXPacke
 		RXInfo: loracontrol.RXInfo{
 			MAC:        mac,
 			Time:       time.Time(rxpk.Time),
-			Timestamp:  uint(rxpk.Tmst),
+			Timestamp:  rxpk.Tmst,
 			Frequency:  rxpk.Freq,
 			Channel:    uint(rxpk.Chan),
 			RFChain:    uint(rxpk.RFCh),
@@ -290,4 +331,35 @@ func newRXPacketFromSemtech(mac lorawan.EUI64, rxpk *RXPK) (*loracontrol.RXPacke
 		},
 	}
 	return rxPacket, nil
+}
+
+func newTXPKFromTXPacket(txPacket loracontrol.TXPacket) (TXPK, error) {
+	b, err := txPacket.PHYPayload.MarshalBinary()
+	if err != nil {
+		return TXPK{}, err
+	}
+
+	txpk := TXPK{
+		Imme: txPacket.TXInfo.Immediately,
+		Tmst: txPacket.TXInfo.Timestamp,
+		Freq: txPacket.TXInfo.Frequency,
+		RFCh: uint8(txPacket.TXInfo.RFChain),
+		Powe: uint8(txPacket.TXInfo.Power),
+		Modu: txPacket.TXInfo.DataRate.Modulation(),
+		DatR: DatR{
+			LoRa: txPacket.TXInfo.DataRate.LoRa,
+			FSK:  uint32(txPacket.TXInfo.DataRate.FSK),
+		},
+		CodR: txPacket.TXInfo.CodeRate,
+		FDev: uint16(txPacket.TXInfo.FrequencyDeviation),
+		Size: uint16(len(b)),
+		NCRC: txPacket.TXInfo.DisableCRC,
+		Data: base64.RawStdEncoding.EncodeToString(b),
+	}
+
+	if txPacket.TXInfo.DataRate.Modulation() == "LORA" {
+		txpk.IPol = true
+	}
+
+	return txpk, nil
 }
