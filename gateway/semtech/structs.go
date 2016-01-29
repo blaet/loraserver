@@ -30,13 +30,17 @@ const (
 	ProtocolVersion1 uint8 = 0x01
 )
 
+// Errors
+var (
+	ErrInvalidProtocolVersion = errors.New("semtech: invalid protocol version")
+)
+
 // PushDataPacket type is used by the gateway mainly to forward the RF packets
 // received, and associated metadata, to the server.
 type PushDataPacket struct {
-	ProtocolVersion uint8
-	RandomToken     uint16
-	GatewayMAC      lorawan.EUI64
-	Payload         PushDataPayload
+	RandomToken uint16
+	GatewayMAC  lorawan.EUI64
+	Payload     PushDataPayload
 }
 
 // MarshalBinary marshals the object in binary form.
@@ -47,7 +51,7 @@ func (p PushDataPacket) MarshalBinary() ([]byte, error) {
 	}
 
 	out := make([]byte, 4, len(pb)+12)
-	out[0] = p.ProtocolVersion
+	out[0] = ProtocolVersion1
 	binary.LittleEndian.PutUint16(out[1:3], p.RandomToken)
 	out[3] = byte(PushData)
 	out = append(out, p.GatewayMAC[0:len(p.GatewayMAC)]...)
@@ -63,8 +67,10 @@ func (p *PushDataPacket) UnmarshalBinary(data []byte) error {
 	if data[3] != byte(PushData) {
 		return errors.New("lorawan/semtech: identifier mismatch (PUSH_DATA expected)")
 	}
+	if data[0] != ProtocolVersion1 {
+		return ErrInvalidProtocolVersion
+	}
 
-	p.ProtocolVersion = data[0]
 	p.RandomToken = binary.LittleEndian.Uint16(data[1:3])
 	for i := 0; i < 8; i++ {
 		p.GatewayMAC[i] = data[4+i]
@@ -76,14 +82,13 @@ func (p *PushDataPacket) UnmarshalBinary(data []byte) error {
 // PushACKPacket is used by the server to acknowledge immediately all the
 // PUSH_DATA packets received.
 type PushACKPacket struct {
-	ProtocolVersion uint8
-	RandomToken     uint16
+	RandomToken uint16
 }
 
 // MarshalBinary marshals the object in binary form.
 func (p PushACKPacket) MarshalBinary() ([]byte, error) {
 	out := make([]byte, 4)
-	out[0] = p.ProtocolVersion
+	out[0] = ProtocolVersion1
 	binary.LittleEndian.PutUint16(out[1:3], p.RandomToken)
 	out[3] = byte(PushACK)
 	return out, nil
@@ -97,22 +102,23 @@ func (p *PushACKPacket) UnmarshalBinary(data []byte) error {
 	if data[3] != byte(PushACK) {
 		return errors.New("lorawan/semtech: identifier mismatch (PUSH_ACK expected)")
 	}
-	p.ProtocolVersion = data[0]
+	if data[0] != ProtocolVersion1 {
+		return ErrInvalidProtocolVersion
+	}
 	p.RandomToken = binary.LittleEndian.Uint16(data[1:3])
 	return nil
 }
 
 // PullDataPacket is used by the gateway to poll data from the server.
 type PullDataPacket struct {
-	ProtocolVersion uint8
-	RandomToken     uint16
-	GatewayMAC      [8]byte
+	RandomToken uint16
+	GatewayMAC  [8]byte
 }
 
 // MarshalBinary marshals the object in binary form.
 func (p PullDataPacket) MarshalBinary() ([]byte, error) {
 	out := make([]byte, 4, 12)
-	out[0] = p.ProtocolVersion
+	out[0] = ProtocolVersion1
 	binary.LittleEndian.PutUint16(out[1:3], p.RandomToken)
 	out[3] = byte(PullData)
 	out = append(out, p.GatewayMAC[0:len(p.GatewayMAC)]...)
@@ -127,7 +133,9 @@ func (p *PullDataPacket) UnmarshalBinary(data []byte) error {
 	if data[3] != byte(PullData) {
 		return errors.New("lorawan/semtech: identifier mismatch (PULL_DATA expected)")
 	}
-	p.ProtocolVersion = data[0]
+	if data[0] != ProtocolVersion1 {
+		return ErrInvalidProtocolVersion
+	}
 	p.RandomToken = binary.LittleEndian.Uint16(data[1:3])
 	for i := 0; i < 8; i++ {
 		p.GatewayMAC[i] = data[4+i]
@@ -138,14 +146,13 @@ func (p *PullDataPacket) UnmarshalBinary(data []byte) error {
 // PullACKPacket is used by the server to confirm that the network route is
 // open and that the server can send PULL_RESP packets at any time.
 type PullACKPacket struct {
-	ProtocolVersion uint8
-	RandomToken     uint16
+	RandomToken uint16
 }
 
 // MarshalBinary marshals the object in binary form.
 func (p PullACKPacket) MarshalBinary() ([]byte, error) {
 	out := make([]byte, 4)
-	out[0] = p.ProtocolVersion
+	out[0] = ProtocolVersion1
 	binary.LittleEndian.PutUint16(out[1:3], p.RandomToken)
 	out[3] = byte(PullACK)
 	return out, nil
@@ -159,7 +166,9 @@ func (p *PullACKPacket) UnmarshalBinary(data []byte) error {
 	if data[3] != byte(PullACK) {
 		return errors.New("lorawan/semtech: identifier mismatch (PULL_ACK expected)")
 	}
-	p.ProtocolVersion = data[0]
+	if data[0] != ProtocolVersion1 {
+		return ErrInvalidProtocolVersion
+	}
 	p.RandomToken = binary.LittleEndian.Uint16(data[1:3])
 	return nil
 }
@@ -167,9 +176,8 @@ func (p *PullACKPacket) UnmarshalBinary(data []byte) error {
 // PullRespPacket is used by the server to send RF packets and associated
 // metadata that will have to be emitted by the gateway.
 type PullRespPacket struct {
-	ProtocolVersion uint8
-	RandomToken     uint16
-	Payload         PullDataPayload
+	RandomToken uint16
+	Payload     PullRespPayload
 }
 
 // MarshalBinary marshals the object in binary form.
@@ -179,7 +187,7 @@ func (p PullRespPacket) MarshalBinary() ([]byte, error) {
 		return nil, err
 	}
 	out := make([]byte, 4, 4+len(pb))
-	out[0] = p.ProtocolVersion
+	out[0] = ProtocolVersion1
 	binary.LittleEndian.PutUint16(out[1:3], p.RandomToken)
 	out[3] = byte(PullResp)
 	out = append(out, pb...)
@@ -194,7 +202,9 @@ func (p *PullRespPacket) UnmarshalBinary(data []byte) error {
 	if data[3] != byte(PullResp) {
 		return errors.New("lorawan/semtech: identifier mismatch (PULL_RESP expected)")
 	}
-	p.ProtocolVersion = data[0]
+	if data[0] != ProtocolVersion1 {
+		return ErrInvalidProtocolVersion
+	}
 	p.RandomToken = binary.LittleEndian.Uint16(data[1:3])
 	return json.Unmarshal(data[4:], &p.Payload)
 }
@@ -205,8 +215,8 @@ type PushDataPayload struct {
 	Stat *Stat  `json:"stat,omitempty"`
 }
 
-// PullDataPayload represents the downstream JSON data structure.
-type PullDataPayload struct {
+// PullRespPayload represents the downstream JSON data structure.
+type PullRespPayload struct {
 	TXPK TXPK `json:"txpk"`
 }
 
@@ -330,7 +340,7 @@ func GetPacketType(data []byte) (PacketType, error) {
 	}
 
 	if data[0] != ProtocolVersion1 {
-		return PacketType(0), errors.New("lorawan/semtech: unknown protocol version")
+		return PacketType(0), ErrInvalidProtocolVersion
 	}
 
 	return PacketType(data[3]), nil
