@@ -87,7 +87,7 @@ func TestGetPacketType(t *testing.T) {
 
 		Convey("Then GetPacketType returns an error (length)", func() {
 			_, err := GetPacketType(b)
-			So(err, ShouldResemble, errors.New("lorawan/semtech: at least 4 bytes of data are expected"))
+			So(err, ShouldResemble, errors.New("gateway/semtech: at least 4 bytes of data are expected"))
 		})
 
 		Convey("Given the slice []byte{2, 1, 3, 4}", func() {

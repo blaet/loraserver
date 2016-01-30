@@ -32,7 +32,7 @@ const (
 
 // Errors
 var (
-	ErrInvalidProtocolVersion = errors.New("semtech: invalid protocol version")
+	ErrInvalidProtocolVersion = errors.New("gateway/semtech: invalid protocol version")
 )
 
 // PushDataPacket type is used by the gateway mainly to forward the RF packets
@@ -62,10 +62,10 @@ func (p PushDataPacket) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary decodes the object from binary form.
 func (p *PushDataPacket) UnmarshalBinary(data []byte) error {
 	if len(data) < 13 {
-		return errors.New("lorawan/semtech: at least 13 bytes are expected")
+		return errors.New("gateway/semtech: at least 13 bytes are expected")
 	}
 	if data[3] != byte(PushData) {
-		return errors.New("lorawan/semtech: identifier mismatch (PUSH_DATA expected)")
+		return errors.New("gateway/semtech: identifier mismatch (PUSH_DATA expected)")
 	}
 	if data[0] != ProtocolVersion1 {
 		return ErrInvalidProtocolVersion
@@ -97,10 +97,10 @@ func (p PushACKPacket) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary decodes the object from binary form.
 func (p *PushACKPacket) UnmarshalBinary(data []byte) error {
 	if len(data) != 4 {
-		return errors.New("lorawan/semtech: 4 bytes of data are expected")
+		return errors.New("gateway/semtech: 4 bytes of data are expected")
 	}
 	if data[3] != byte(PushACK) {
-		return errors.New("lorawan/semtech: identifier mismatch (PUSH_ACK expected)")
+		return errors.New("gateway/semtech: identifier mismatch (PUSH_ACK expected)")
 	}
 	if data[0] != ProtocolVersion1 {
 		return ErrInvalidProtocolVersion
@@ -128,10 +128,10 @@ func (p PullDataPacket) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary decodes the object from binary form.
 func (p *PullDataPacket) UnmarshalBinary(data []byte) error {
 	if len(data) != 12 {
-		return errors.New("lorawan/semtech: 12 bytes of data are expected")
+		return errors.New("gateway/semtech: 12 bytes of data are expected")
 	}
 	if data[3] != byte(PullData) {
-		return errors.New("lorawan/semtech: identifier mismatch (PULL_DATA expected)")
+		return errors.New("gateway/semtech: identifier mismatch (PULL_DATA expected)")
 	}
 	if data[0] != ProtocolVersion1 {
 		return ErrInvalidProtocolVersion
@@ -161,10 +161,10 @@ func (p PullACKPacket) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary decodes the object from binary form.
 func (p *PullACKPacket) UnmarshalBinary(data []byte) error {
 	if len(data) != 4 {
-		return errors.New("lorawan/semtech: 4 bytes of data are expected")
+		return errors.New("gateway/semtech: 4 bytes of data are expected")
 	}
 	if data[3] != byte(PullACK) {
-		return errors.New("lorawan/semtech: identifier mismatch (PULL_ACK expected)")
+		return errors.New("gateway/semtech: identifier mismatch (PULL_ACK expected)")
 	}
 	if data[0] != ProtocolVersion1 {
 		return ErrInvalidProtocolVersion
@@ -197,10 +197,10 @@ func (p PullRespPacket) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary decodes the object from binary form.
 func (p *PullRespPacket) UnmarshalBinary(data []byte) error {
 	if len(data) < 5 {
-		return errors.New("lorawan/semtech: at least 5 bytes of data are expected")
+		return errors.New("gateway/semtech: at least 5 bytes of data are expected")
 	}
 	if data[3] != byte(PullResp) {
-		return errors.New("lorawan/semtech: identifier mismatch (PULL_RESP expected)")
+		return errors.New("gateway/semtech: identifier mismatch (PULL_RESP expected)")
 	}
 	if data[0] != ProtocolVersion1 {
 		return ErrInvalidProtocolVersion
@@ -336,7 +336,7 @@ type TXPK struct {
 // GetPacketType returns the packet type for the given packet data.
 func GetPacketType(data []byte) (PacketType, error) {
 	if len(data) < 4 {
-		return PacketType(0), errors.New("lorawan/semtech: at least 4 bytes of data are expected")
+		return PacketType(0), errors.New("gateway/semtech: at least 4 bytes of data are expected")
 	}
 
 	if data[0] != ProtocolVersion1 {
