@@ -14,7 +14,7 @@ import (
 func HandleGatewayPackets(rxPacketChan chan loracontrol.RXPacket, c *loracontrol.Client) {
 	for rxPacket := range rxPacketChan {
 		go func(rxPacket loracontrol.RXPacket) {
-			err := c.Packet().CollectAndCallOnce(&rxPacket, func(packets loracontrol.RXPackets) error {
+			err := c.Packet().CollectAndCallOnce(rxPacket, func(packets loracontrol.RXPackets) error {
 				return handleCollectedPackets(packets, c)
 			})
 			if err != nil {
@@ -66,8 +66,17 @@ func handleRXDataPacket(rxPackets loracontrol.RXPackets, client *loracontrol.Cli
 		return fmt.Errorf("expected *lorawan.MACPayload, got %T", rxPacket.PHYPayload.MACPayload)
 	}
 
+	// get the node-session data from the database
+	nodeSession, err := client.NodeSession().Get(macPL.FHDR.DevAddr)
+	if err != nil {
+		if err == loracontrol.ErrObjectDoesNotExist {
+			return errors.New("could not find node-session in the database")
+		}
+		return err
+	}
+
 	// get the node data from the database
-	node, err := client.Node().Get(macPL.FHDR.DevAddr)
+	node, err := client.Node().Get(nodeSession.DevEUI)
 	if err != nil {
 		if err == loracontrol.ErrObjectDoesNotExist {
 			return errors.New("could not find node in the database")
@@ -76,11 +85,11 @@ func handleRXDataPacket(rxPackets loracontrol.RXPackets, client *loracontrol.Cli
 	}
 
 	// validate and get the full FCnt
-	fullFCnt, ok := node.ValidateAndGetFullFCntUp(macPL.FHDR.FCnt)
+	fullFCnt, ok := nodeSession.ValidateAndGetFullFCntUp(macPL.FHDR.FCnt)
 	if !ok {
 		log.WithFields(log.Fields{
 			"packet_fcnt": macPL.FHDR.FCnt,
-			"server_fcnt": node.FCntUp,
+			"server_fcnt": nodeSession.FCntUp,
 		}).Warning("invalid FCnt")
 		return errors.New("invalid FCnt or too many dropped frames")
 	}
@@ -89,7 +98,7 @@ func handleRXDataPacket(rxPackets loracontrol.RXPackets, client *loracontrol.Cli
 	macPL.FHDR.FCnt = fullFCnt
 
 	// validate MIC
-	micOK, err := rxPacket.PHYPayload.ValidateMIC(node.NwkSKey)
+	micOK, err := rxPacket.PHYPayload.ValidateMIC(nodeSession.NwkSKey)
 	if err != nil {
 		return err
 	}
@@ -98,14 +107,14 @@ func handleRXDataPacket(rxPackets loracontrol.RXPackets, client *loracontrol.Cli
 	}
 
 	// increment counter
-	node.FCntUp = node.FCntUp + 1
-	if err := client.Node().Update(node); err != nil {
+	nodeSession.FCntUp = nodeSession.FCntUp + 1
+	if err := client.NodeSession().UpdateExpire(nodeSession); err != nil {
 		return err
 	}
 
 	// decrypt FRMPayload with NwkSKey when FPort == 0
 	if macPL.FPort == 0 {
-		if err := macPL.DecryptFRMPayload(node.NwkSKey); err != nil {
+		if err := macPL.DecryptFRMPayload(nodeSession.NwkSKey); err != nil {
 			return err
 		}
 

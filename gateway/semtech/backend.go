@@ -278,8 +278,8 @@ func (b *Backend) collectRXPacket(addr *net.UDPAddr, mac lorawan.EUI64, rxpk *RX
 	return nil
 }
 
-func newGatewayFromSemtech(addr *net.UDPAddr, mac lorawan.EUI64, stat *Stat) *loracontrol.Gateway {
-	return &loracontrol.Gateway{
+func newGatewayFromSemtech(addr *net.UDPAddr, mac lorawan.EUI64, stat *Stat) loracontrol.Gateway {
+	return loracontrol.Gateway{
 		UpdatedAt:                   time.Time(stat.Time),
 		MAC:                         mac,
 		Latitude:                    stat.Lati,

@@ -26,7 +26,7 @@ func TestApplicationCreateHandler(t *testing.T) {
 
 		Convey("Given a test http server serving the handler and test JSON", func() {
 			s := httptest.NewServer(&ApplicationCreateHandler{c})
-			app := &loracontrol.Application{
+			app := loracontrol.Application{
 				AppEUI: [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 			}
 			jsonBytes, err := json.Marshal(app)
@@ -99,7 +99,7 @@ func TestApplicationObjectHandler(t *testing.T) {
 			})
 
 			Convey("Given an application in the database", func() {
-				app := &loracontrol.Application{
+				app := loracontrol.Application{
 					AppEUI: [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 				}
 				So(c.Application().Create(app), ShouldBeNil)
@@ -109,9 +109,9 @@ func TestApplicationObjectHandler(t *testing.T) {
 					So(err, ShouldBeNil)
 					So(resp.StatusCode, ShouldEqual, http.StatusOK)
 
-					out := new(loracontrol.Application)
+					out := loracontrol.Application{}
 					dec := json.NewDecoder(resp.Body)
-					So(dec.Decode(out), ShouldBeNil)
+					So(dec.Decode(&out), ShouldBeNil)
 					So(out, ShouldResemble, app)
 				})
 
@@ -148,9 +148,9 @@ func TestApplicationObjectHandler(t *testing.T) {
 						So(err, ShouldBeNil)
 						So(resp.StatusCode, ShouldEqual, http.StatusOK)
 
-						out := new(loracontrol.Application)
+						out := loracontrol.Application{}
 						dec := json.NewDecoder(resp.Body)
-						So(dec.Decode(out), ShouldBeNil)
+						So(dec.Decode(&out), ShouldBeNil)
 						So(out, ShouldResemble, app)
 					})
 				})

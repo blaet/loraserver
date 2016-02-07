@@ -211,7 +211,7 @@ func TestBackend(t *testing.T) {
 				})
 
 				Convey("Given a matching gateway in the database", func() {
-					gw := &loracontrol.Gateway{
+					gw := loracontrol.Gateway{
 						MAC: lorawan.EUI64{1, 2, 3, 4, 5, 6, 7, 8},
 						Config: loracontrol.PropertyBag{
 							String: map[string]string{
@@ -285,7 +285,7 @@ func TestNewGatewayFromSemtech(t *testing.T) {
 		Convey("When calling newGatewayFromSemtech", func() {
 			gw := newGatewayFromSemtech(addr, mac, stat)
 			Convey("Then all Gateway fields are set correctly", func() {
-				So(gw, ShouldResemble, &loracontrol.Gateway{
+				So(gw, ShouldResemble, loracontrol.Gateway{
 					UpdatedAt:                   now,
 					MAC:                         mac,
 					Latitude:                    1.234,

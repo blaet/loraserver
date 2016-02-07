@@ -26,9 +26,9 @@ func TestNodeCreateHandler(t *testing.T) {
 
 		Convey("Given a test http server serving the handler and test JSON", func() {
 			s := httptest.NewServer(&NodeCreateHandler{c})
-			node := &loracontrol.Node{
-				DevAddr: [4]byte{1, 2, 3, 4},
-				AppEUI:  [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
+			node := loracontrol.Node{
+				DevEUI: [8]byte{8, 7, 6, 5, 4, 3, 2, 1},
+				AppEUI: [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 			}
 			jsonBytes, err := json.Marshal(node)
 			So(err, ShouldBeNil)
@@ -49,7 +49,7 @@ func TestNodeCreateHandler(t *testing.T) {
 				Convey("Then the status code is 201 and the node is created", func() {
 					So(resp.StatusCode, ShouldEqual, http.StatusCreated)
 
-					out, err := c.Node().Get([4]byte{1, 2, 3, 4})
+					out, err := c.Node().Get(node.DevEUI)
 					So(err, ShouldBeNil)
 					So(out, ShouldResemble, node)
 
@@ -82,50 +82,50 @@ func TestNodeObjectHandler(t *testing.T) {
 			s := httptest.NewServer(r)
 
 			Convey("Getting a non-existing node returns 404", func() {
-				resp, err := http.Get(s.URL + "/01020304")
+				resp, err := http.Get(s.URL + "/0102030405060708")
 				So(err, ShouldBeNil)
 				So(resp.StatusCode, ShouldEqual, http.StatusNotFound)
 			})
 
 			Convey("Getting an invalid node id returns 401", func() {
-				resp, err := http.Get(s.URL + "/0102030")
+				resp, err := http.Get(s.URL + "/010203040506070")
 				So(err, ShouldBeNil)
 				So(resp.StatusCode, ShouldEqual, http.StatusBadRequest)
 			})
 
 			Convey("Getting a node with an id which is too short returns 401", func() {
-				resp, err := http.Get(s.URL + "/010203")
+				resp, err := http.Get(s.URL + "/01020304050607")
 				So(err, ShouldBeNil)
 				So(resp.StatusCode, ShouldEqual, http.StatusBadRequest)
 			})
 
 			Convey("Given a node in the database", func() {
-				node := &loracontrol.Node{
-					DevAddr: [4]byte{1, 2, 3, 4},
-					AppEUI:  [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
+				node := loracontrol.Node{
+					DevEUI: [8]byte{8, 7, 6, 5, 4, 3, 2, 1},
+					AppEUI: [8]byte{1, 2, 3, 4, 5, 6, 7, 8},
 				}
 				So(c.Node().Create(node), ShouldBeNil)
 
 				Convey("Then GET returns the node", func() {
-					resp, err := http.Get(s.URL + "/01020304")
+					resp, err := http.Get(s.URL + "/0807060504030201")
 					So(err, ShouldBeNil)
 					So(resp.StatusCode, ShouldEqual, http.StatusOK)
 
-					out := new(loracontrol.Node)
+					out := loracontrol.Node{}
 					dec := json.NewDecoder(resp.Body)
-					So(dec.Decode(out), ShouldBeNil)
+					So(dec.Decode(&out), ShouldBeNil)
 					So(out, ShouldResemble, node)
 				})
 
 				Convey("When DELETE-ing this node", func() {
-					req, err := http.NewRequest("DELETE", s.URL+"/01020304", nil)
+					req, err := http.NewRequest("DELETE", s.URL+"/0807060504030201", nil)
 					So(err, ShouldBeNil)
 					resp, err := http.DefaultClient.Do(req)
 					So(err, ShouldBeNil)
 					So(resp.StatusCode, ShouldEqual, http.StatusNoContent)
 
 					Convey("Then the node has been deleted", func() {
-						resp, err := http.Get(s.URL + "/01020304")
+						resp, err := http.Get(s.URL + "/0807060504030201")
 						So(err, ShouldBeNil)
 						So(resp.StatusCode, ShouldEqual, http.StatusNotFound)
 					})
@@ -135,25 +135,25 @@ func TestNodeObjectHandler(t *testing.T) {
 					node.AppEUI = [8]byte{1, 1, 1, 1, 1, 1, 1, 1}
 					b, err := json.Marshal(node)
 					So(err, ShouldBeNil)
-					req, err := http.NewRequest("PUT", s.URL+"/01020304", bytes.NewReader(b))
+					req, err := http.NewRequest("PUT", s.URL+"/0807060504030201", bytes.NewReader(b))
 					So(err, ShouldBeNil)
 					resp, err := http.DefaultClient.Do(req)
 					So(err, ShouldBeNil)
 					So(resp.StatusCode, ShouldEqual, http.StatusNoContent)
 
 					Convey("Then the node is updated", func() {
-						resp, err := http.Get(s.URL + "/01020304")
+						resp, err := http.Get(s.URL + "/0807060504030201")
 						So(err, ShouldBeNil)
 						So(resp.StatusCode, ShouldEqual, http.StatusOK)
 
-						out := new(loracontrol.Node)
+						out := loracontrol.Node{}
 						dec := json.NewDecoder(resp.Body)
-						So(dec.Decode(out), ShouldBeNil)
+						So(dec.Decode(&out), ShouldBeNil)
 						So(out, ShouldResemble, node)
 					})
 
 					Convey("When updating with invalid JSON then a 401 is returned", func() {
-						req, err := http.NewRequest("PUT", s.URL+"/01020304", bytes.NewReader(b[1:]))
+						req, err := http.NewRequest("PUT", s.URL+"/0807060504030201", bytes.NewReader(b[1:]))
 						So(err, ShouldBeNil)
 						resp, err := http.DefaultClient.Do(req)
 						So(err, ShouldBeNil)
@@ -161,10 +161,10 @@ func TestNodeObjectHandler(t *testing.T) {
 					})
 
 					Convey("When the id in the url does not match the id in the body then a 401 is returned", func() {
-						node.DevAddr = [4]byte{1, 2, 3, 3}
+						node.DevEUI = [8]byte{8, 7, 6, 5, 4, 3, 2, 2}
 						b, err := json.Marshal(node)
 						So(err, ShouldBeNil)
-						req, err := http.NewRequest("PUT", s.URL+"/01020304", bytes.NewReader(b))
+						req, err := http.NewRequest("PUT", s.URL+"/0807060504030201", bytes.NewReader(b))
 						So(err, ShouldBeNil)
 						resp, err := http.DefaultClient.Do(req)
 						So(err, ShouldBeNil)
@@ -174,7 +174,7 @@ func TestNodeObjectHandler(t *testing.T) {
 				})
 
 				Convey("Requesting with an invalid method returns 405", func() {
-					req, err := http.NewRequest("PATCH", s.URL+"/01020304", nil)
+					req, err := http.NewRequest("PATCH", s.URL+"/0807060504030201", nil)
 					So(err, ShouldBeNil)
 					resp, err := http.DefaultClient.Do(req)
 					So(err, ShouldBeNil)

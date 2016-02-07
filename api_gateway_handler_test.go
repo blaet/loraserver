@@ -49,7 +49,7 @@ func TestGatewayObjectHandler(t *testing.T) {
 			})
 
 			Convey("Given a gateway in the database", func() {
-				gw := &loracontrol.Gateway{
+				gw := loracontrol.Gateway{
 					UpdatedAt: time.Now().UTC(),
 					MAC:       lorawan.EUI64{1, 2, 3, 4, 5, 6, 7, 8},
 				}
@@ -60,9 +60,9 @@ func TestGatewayObjectHandler(t *testing.T) {
 					So(err, ShouldBeNil)
 					So(resp.StatusCode, ShouldEqual, http.StatusOK)
 
-					out := new(loracontrol.Gateway)
+					out := loracontrol.Gateway{}
 					dec := json.NewDecoder(resp.Body)
-					So(dec.Decode(out), ShouldBeNil)
+					So(dec.Decode(&out), ShouldBeNil)
 					So(out, ShouldResemble, gw)
 				})
 			})

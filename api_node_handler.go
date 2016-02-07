@@ -19,9 +19,9 @@ type NodeCreateHandler struct {
 
 func (h *NodeCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	node := new(loracontrol.Node)
+	node := loracontrol.Node{}
 	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(node); err != nil {
+	if err := dec.Decode(&node); err != nil {
 		APIError{
 			Code:    http.StatusBadRequest,
 			Message: err.Error(),
@@ -42,7 +42,7 @@ func (h *NodeCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}.write(w)
 		return
 	}
-	log.WithField("dev_addr", node.DevAddr).Info("node created")
+	log.WithField("dev_eui", node.DevEUI).Info("node created")
 	w.WriteHeader(http.StatusCreated)
 }
 
@@ -66,7 +66,7 @@ func (h *NodeObjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var devAddr lorawan.DevAddr
+	var devEUI lorawan.EUI64
 	b, err := hex.DecodeString(id)
 	if err != nil {
 		APIError{
@@ -75,22 +75,22 @@ func (h *NodeObjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}.write(w)
 		return
 	}
-	if len(b) != len(devAddr) {
+	if len(b) != len(devEUI) {
 		APIError{
 			Code:    http.StatusBadRequest,
-			Message: fmt.Sprintf("a DevAddr is exactly %d bytes", len(devAddr)),
+			Message: fmt.Sprintf("a DevEUI is exactly %d bytes", len(devEUI)),
 		}.write(w)
 		return
 	}
-	copy(devAddr[:], b)
+	copy(devEUI[:], b)
 
 	switch r.Method {
 	case "GET":
-		h.serveGET(w, r, devAddr)
+		h.serveGET(w, r, devEUI)
 	case "PUT":
-		h.servePUT(w, r, devAddr)
+		h.servePUT(w, r, devEUI)
 	case "DELETE":
-		h.serveDELETE(w, r, devAddr)
+		h.serveDELETE(w, r, devEUI)
 	default:
 		APIError{
 			Code:    http.StatusMethodNotAllowed,
@@ -99,8 +99,8 @@ func (h *NodeObjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *NodeObjectHandler) serveGET(w http.ResponseWriter, r *http.Request, devAddr lorawan.DevAddr) {
-	node, err := h.Client.Node().Get(devAddr)
+func (h *NodeObjectHandler) serveGET(w http.ResponseWriter, r *http.Request, devEUI lorawan.EUI64) {
+	node, err := h.Client.Node().Get(devEUI)
 	if err != nil {
 		if err == loracontrol.ErrObjectDoesNotExist {
 			APIError{
@@ -125,10 +125,10 @@ func (h *NodeObjectHandler) serveGET(w http.ResponseWriter, r *http.Request, dev
 	}
 }
 
-func (h *NodeObjectHandler) servePUT(w http.ResponseWriter, r *http.Request, devAddr lorawan.DevAddr) {
-	node := new(loracontrol.Node)
+func (h *NodeObjectHandler) servePUT(w http.ResponseWriter, r *http.Request, devEUI lorawan.EUI64) {
+	node := loracontrol.Node{}
 	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(node); err != nil {
+	if err := dec.Decode(&node); err != nil {
 		APIError{
 			Code:    http.StatusBadRequest,
 			Message: err.Error(),
@@ -136,10 +136,10 @@ func (h *NodeObjectHandler) servePUT(w http.ResponseWriter, r *http.Request, dev
 		return
 	}
 
-	if node.DevAddr != devAddr {
+	if node.DevEUI != devEUI {
 		APIError{
 			Code:    http.StatusBadRequest,
-			Message: "DevAddr in url should match DevAddr in request body",
+			Message: "DevEUI in url should match DevEUI in request body",
 		}.write(w)
 		return
 	}
@@ -162,8 +162,8 @@ func (h *NodeObjectHandler) servePUT(w http.ResponseWriter, r *http.Request, dev
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *NodeObjectHandler) serveDELETE(w http.ResponseWriter, r *http.Request, devAddr lorawan.DevAddr) {
-	if err := h.Client.Node().Delete(devAddr); err != nil {
+func (h *NodeObjectHandler) serveDELETE(w http.ResponseWriter, r *http.Request, devEUI lorawan.EUI64) {
+	if err := h.Client.Node().Delete(devEUI); err != nil {
 		if err == loracontrol.ErrObjectDoesNotExist {
 			APIError{
 				Code:    http.StatusNotFound,
@@ -177,6 +177,6 @@ func (h *NodeObjectHandler) serveDELETE(w http.ResponseWriter, r *http.Request, 
 		}.write(w)
 		return
 	}
-	log.WithField("dev_addr", devAddr).Info("node deleted")
+	log.WithField("dev_eui", devEUI).Info("node deleted")
 	w.WriteHeader(http.StatusNoContent)
 }

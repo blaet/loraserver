@@ -35,9 +35,9 @@ type ApplicationCreateHandler struct {
 
 func (h *ApplicationCreateHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
-	app := new(loracontrol.Application)
+	app := loracontrol.Application{}
 	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(app); err != nil {
+	if err := dec.Decode(&app); err != nil {
 		APIError{
 			Code:    http.StatusBadRequest,
 			Message: err.Error(),
@@ -143,9 +143,9 @@ func (h *ApplicationObjectHandler) serveGET(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *ApplicationObjectHandler) servePUT(w http.ResponseWriter, r *http.Request, appEUI lorawan.EUI64) {
-	app := new(loracontrol.Application)
+	app := loracontrol.Application{}
 	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(app); err != nil {
+	if err := dec.Decode(&app); err != nil {
 		APIError{
 			Code:    http.StatusBadRequest,
 			Message: err.Error(),

@@ -21,6 +21,14 @@ func (b *testApplicationBackend) Send(appEUI lorawan.EUI64, rxPackets loracontro
 
 func (b *testApplicationBackend) SetClient(c *loracontrol.Client) {}
 
+func (b *testApplicationBackend) Close() error {
+	return nil
+}
+
+func (b *testApplicationBackend) Receive() chan loracontrol.TXPacket {
+	return make(chan loracontrol.TXPacket)
+}
+
 func TestHandleGatewayPackets(t *testing.T) {
 	config := getConfig()
 
@@ -37,7 +45,6 @@ func TestHandleGatewayPackets(t *testing.T) {
 		nwkSKey := lorawan.AES128Key{2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}
 		appSKey := lorawan.AES128Key{3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3}
 		devAddr := lorawan.DevAddr{1, 1, 1, 1}
-		appEUI := lorawan.EUI64{4, 4, 4, 4, 4, 4, 4, 4}
 
 		Convey("Given a test RXPackets", func() {
 			macPL := lorawan.NewMACPayload(true)
@@ -84,71 +91,81 @@ func TestHandleGatewayPackets(t *testing.T) {
 			Convey("When calling handleCollectedPackets", func() {
 				err := handleCollectedPackets(rxPackets, client)
 				Convey("Then an error is returned that the node does not exists", func() {
-					So(err, ShouldResemble, errors.New("could not find node in the database"))
+					So(err, ShouldResemble, errors.New("could not find node-session in the database"))
 				})
 			})
 
-			Convey("Given the node is in the database", func() {
-				node := &loracontrol.Node{
+			Convey("Given the node-session is in the database", func() {
+				nodeSession := loracontrol.NodeSession{
 					DevAddr: devAddr,
+					DevEUI:  [8]byte{1, 1, 1, 1, 1, 1, 1, 1},
 					NwkSKey: nwkSKey,
 					FCntUp:  10,
-					AppEUI:  appEUI,
 				}
-				So(client.Node().Create(node), ShouldBeNil)
+				So(client.NodeSession().CreateExpire(nodeSession), ShouldBeNil)
 
-				Convey("Given the application is in the database", func() {
-					app := &loracontrol.Application{
-						AppEUI: node.AppEUI,
+				Convey("Given the node is in the database", func() {
+					node := loracontrol.Node{
+						DevEUI: [8]byte{1, 1, 1, 1, 1, 1, 1, 1},
+						AppEUI: [8]byte{2, 2, 2, 2, 2, 2, 2, 2},
+						AppKey: [16]byte{3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3},
 					}
-					So(client.Application().Create(app), ShouldBeNil)
+					So(client.Node().Create(node), ShouldBeNil)
 
-					Convey("Then handleCollectedPackets does not return an error", func() {
-						err := handleCollectedPackets(rxPackets, client)
-						So(err, ShouldBeNil)
+					Convey("Given the application is in the database", func() {
+						app := loracontrol.Application{
+							AppEUI: [8]byte{2, 2, 2, 2, 2, 2, 2, 2},
+						}
+						So(client.Application().Create(app), ShouldBeNil)
 
-						Convey("Then the app backend Send was called once", func() {
-							So(appBackend.callCount, ShouldEqual, 1)
-						})
-
-						Convey("The FCntUp on the node is incremented", func() {
-							n, err := client.Node().Get(node.DevAddr)
+						Convey("Then handleCollectedPackets does not return an error", func() {
+							err := handleCollectedPackets(rxPackets, client)
 							So(err, ShouldBeNil)
-							So(n.FCntUp, ShouldEqual, node.FCntUp+1)
+
+							Convey("Then the app backend Send was called once", func() {
+								So(appBackend.callCount, ShouldEqual, 1)
+							})
+
+							Convey("The FCntUp on the node is incremented", func() {
+								n, err := client.NodeSession().Get(nodeSession.DevAddr)
+								So(err, ShouldBeNil)
+								So(n.FCntUp, ShouldEqual, nodeSession.FCntUp+1)
+							})
 						})
-					})
 
-					Convey("When calling HandleGatewayPackets", func() {
-						pkChan := make(chan loracontrol.RXPacket, 1)
-						pkChan <- rxPackets[0]
-						close(pkChan)
+						Convey("When calling HandleGatewayPackets", func() {
+							pkChan := make(chan loracontrol.RXPacket, 1)
+							pkChan <- rxPackets[0]
+							close(pkChan)
 
-						HandleGatewayPackets(pkChan, client)
+							HandleGatewayPackets(pkChan, client)
 
-						Convey("Then the packet has been sent by the app backend", func() {
-							time.Sleep(time.Millisecond * 200)
-							So(appBackend.callCount, ShouldEqual, 1)
+							Convey("Then the packet has been sent by the app backend", func() {
+								time.Sleep(time.Millisecond * 200)
+								So(appBackend.callCount, ShouldEqual, 1)
+							})
 						})
-					})
 
-					Convey("When the FCnt is invalid", func() {
-						node.FCntUp = 11
-						So(client.Node().Update(node), ShouldBeNil)
+						Convey("When the FCnt is invalid", func() {
+							nodeSession.FCntUp = 11
+							So(client.NodeSession().UpdateExpire(nodeSession), ShouldBeNil)
 
-						Convey("Then handleCollectedPackets returns an invalid FCnt error", func() {
-							err := handleCollectedPackets(rxPackets, client)
-							So(err, ShouldResemble, errors.New("invalid FCnt or too many dropped frames"))
+							Convey("Then handleCollectedPackets returns an invalid FCnt error", func() {
+								err := handleCollectedPackets(rxPackets, client)
+								So(err, ShouldResemble, errors.New("invalid FCnt or too many dropped frames"))
+							})
 						})
-					})
 
-					Convey("When the NwkSKey is invalid", func() {
-						node.NwkSKey[0] = 0
-						So(client.Node().Update(node), ShouldBeNil)
+						Convey("When the NwkSKey is invalid", func() {
+							nodeSession.NwkSKey[0] = 0
+							So(client.NodeSession().UpdateExpire(nodeSession), ShouldBeNil)
 
-						Convey("Then handleCollectedPackets returns an invalid MIC error", func() {
-							err := handleCollectedPackets(rxPackets, client)
-							So(err, ShouldResemble, errors.New("invalid MIC"))
+							Convey("Then handleCollectedPackets returns an invalid MIC error", func() {
+								err := handleCollectedPackets(rxPackets, client)
+								So(err, ShouldResemble, errors.New("invalid MIC"))
+							})
 						})
+
 					})
 				})
 			})
