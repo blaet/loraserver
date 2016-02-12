@@ -37,7 +37,7 @@ func run(c *cli.Context) {
 		log.Fatal(err)
 	}
 
-	go loraserver.HandleGatewayPackets(client.Gateway().Receive(), client)
+	go loraserver.HandleGatewayPackets(client)
 
 	// setup admin handler
 	r := mux.NewRouter().StrictSlash(true)
