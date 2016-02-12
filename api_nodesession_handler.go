@@ -106,7 +106,9 @@ func (h *NodeSessionObjectHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		}.write(w)
 		return
 	}
-	w.WriteHeader(status)
+	if status != http.StatusOK {
+		w.WriteHeader(status)
+	}
 }
 
 func (h *NodeSessionObjectHandler) serveGET(w http.ResponseWriter, r *http.Request, devAddr lorawan.DevAddr) (int, error) {
