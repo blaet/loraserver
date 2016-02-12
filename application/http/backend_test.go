@@ -1,7 +1,7 @@
 package http
 
 import (
-	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -38,34 +38,29 @@ func getConfig() *config {
 
 type testApplicationHandler struct {
 	responseCode int
-	now          time.Time
-	data         string
+	time         time.Time
+	data         []byte
 }
 
 func (h *testApplicationHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	payload := struct {
-		Time         time.Time `json:"time"`
-		GatewayCount int       `json:"gatewayCount"`
-		PHYPayload   string    `json:"phyPayload"`
-	}{}
-
+	pl := RXPayload{}
 	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&payload); err != nil {
+	if err := dec.Decode(&pl); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if payload.PHYPayload != h.data {
+	if hex.EncodeToString(pl.Payload) != hex.EncodeToString(h.data) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if !payload.Time.Equal(h.now) {
+	if !pl.TimeReceived.Equal(h.time) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
-	if payload.GatewayCount != 2 {
+	if pl.GatewayCount != 2 {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -75,7 +70,6 @@ func (h *testApplicationHandler) ServeHTTP(w http.ResponseWriter, r *http.Reques
 
 func TestBackend(t *testing.T) {
 	conf := getConfig()
-	appSKey := [16]byte{2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2}
 
 	Convey("Given a Client, clean Redis database an HTTP application backend", t, func() {
 		c, err := loracontrol.NewClient(
@@ -99,7 +93,6 @@ func TestBackend(t *testing.T) {
 				macPl.FRMPayload = []lorawan.Payload{
 					&lorawan.DataPayload{Bytes: []byte("hello")},
 				}
-				So(macPl.EncryptFRMPayload(appSKey), ShouldBeNil)
 
 				phy := lorawan.NewPHYPayload(true)
 				phy.MHDR = lorawan.MHDR{
@@ -114,14 +107,11 @@ func TestBackend(t *testing.T) {
 					loracontrol.RXPacket{RXInfo: loracontrol.RXInfo{Time: now}, PHYPayload: phy},
 				}
 
-				b, err := phy.MarshalBinary()
-				So(err, ShouldBeNil)
-
-				h.now = now
-				h.data = base64.StdEncoding.EncodeToString(b)
+				h.time = now
+				h.data = []byte("hello")
 
 				Convey("Given an application in the database", func() {
-					app := &loracontrol.Application{
+					app := loracontrol.Application{
 						AppEUI: lorawan.EUI64{1, 2, 3, 4, 5, 6, 7, 8},
 						Config: loracontrol.PropertyBag{
 							String: map[string]string{

@@ -13,6 +13,14 @@ import (
 	"github.com/brocaar/lorawan"
 )
 
+// RXPayload is the payload sent to the application backend.
+type RXPayload struct {
+	TimeReceived time.Time `json:"timeReceived"`
+	GatewayCount int       `json:"gatewayCount"`
+	Port         int       `json:"port"`
+	Payload      []byte    `json:"payload"`
+}
+
 // Backend implements a HTTP application backend.
 // It expects that the "callbackURL" config string is set to the url
 // to which it should send the payload for the application. E.g.
@@ -25,20 +33,26 @@ import (
 //			},
 //		}
 type Backend struct {
-	client *loracontrol.Client
+	client       *loracontrol.Client
+	txPacketChan chan loracontrol.TXPacket
 }
 
-// RXPayload is the payload sent to the application backend.
-type RXPayload struct {
-	Time         time.Time `json:"time"`
-	GatewayCount int       `json:"gatewayCount"`
-	PHYPayload   []byte    `json:"phyPayload"`
+// NewBackend creates a new Backend.
+func NewBackend() *Backend {
+	return &Backend{
+		txPacketChan: make(chan loracontrol.TXPacket),
+	}
 }
 
 // SetClient sets the loracontrol.Client and is automatically called by
 // loracontrol.SetApplicationBackend.
 func (b *Backend) SetClient(c *loracontrol.Client) {
 	b.client = c
+}
+
+// Close closes the application backend.
+func (b *Backend) Close() error {
+	return nil
 }
 
 // Send sends the given packets as one packet to the application handler.
@@ -54,15 +68,26 @@ func (b *Backend) Send(appEUI lorawan.EUI64, packets loracontrol.RXPackets) erro
 	if len(packets) == 0 {
 		return errors.New("application/http: packets should have length > 0")
 	}
-	data, err := packets[0].PHYPayload.MarshalBinary()
+
+	macPL, ok := packets[0].PHYPayload.MACPayload.(*lorawan.MACPayload)
+	if !ok {
+		return fmt.Errorf("application/http: expected *lorawan.MACPayload, got %T", packets[0].PHYPayload.MACPayload)
+	}
+
+	if len(macPL.FRMPayload) != 1 {
+		return errors.New("application/http: expected exactly 1 FRMPayload")
+	}
+
+	data, err := macPL.FRMPayload[0].MarshalBinary()
 	if err != nil {
 		return err
 	}
 
 	pl := RXPayload{
-		Time:         packets[0].RXInfo.Time,
+		TimeReceived: packets[0].RXInfo.Time,
 		GatewayCount: len(packets),
-		PHYPayload:   data,
+		Port:         int(macPL.FPort),
+		Payload:      data,
 	}
 	data, err = json.Marshal(&pl)
 	if err != nil {
@@ -78,4 +103,9 @@ func (b *Backend) Send(appEUI lorawan.EUI64, packets loracontrol.RXPackets) erro
 		return fmt.Errorf("application/http: expected 200 or 201 response code, got: %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// Receive returns the channel with received packets from the application.
+func (b *Backend) Receive() chan loracontrol.TXPacket {
+	return b.txPacketChan
 }
