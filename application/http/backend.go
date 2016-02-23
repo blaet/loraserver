@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	h "net/http"
-	"time"
 
 	"github.com/brocaar/loracontrol"
 	"github.com/brocaar/lorawan"
@@ -15,10 +14,14 @@ import (
 
 // RXPayload is the payload sent to the application backend.
 type RXPayload struct {
-	TimeReceived time.Time `json:"timeReceived"`
-	GatewayCount int       `json:"gatewayCount"`
-	Port         int       `json:"port"`
-	Payload      []byte    `json:"payload"`
+	TimeReceived uint32  `json:"timeReceived"`
+	GatewayCount int     `json:"gatewayCount"`
+	Frequency    float64 `json:"frequency"`
+	Channel      uint    `json:"channel"`
+	RSSI         int     `json:"rssi"`
+	LoRaSNR      float64 `json:"loraSNR"`
+	FPort        int     `json:"fport"`
+	Payload      []byte  `json:"payload"`
 }
 
 // Backend implements a HTTP application backend.
@@ -84,9 +87,13 @@ func (b *Backend) Send(appEUI lorawan.EUI64, packets loracontrol.RXPackets) erro
 	}
 
 	pl := RXPayload{
-		TimeReceived: packets[0].RXInfo.Time,
+		TimeReceived: packets[0].RXInfo.Timestamp,
 		GatewayCount: len(packets),
-		Port:         int(macPL.FPort),
+		Frequency:    packets[0].RXInfo.Frequency,
+		Channel:      packets[0].RXInfo.Channel,
+		RSSI:         packets[0].RXInfo.RSSI,
+		LoRaSNR:      packets[0].RXInfo.LoRaSNR,
+		FPort:        int(macPL.FPort),
 		Payload:      data,
 	}
 	data, err = json.Marshal(&pl)
