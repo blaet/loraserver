@@ -111,6 +111,7 @@ func handleCollectedPackets(rxPackets loracontrol.RXPackets, c *loracontrol.Clie
 		return handleRXDataPacket(rxPackets, c)
 	case lorawan.ConfirmedDataUp:
 		log.Info("=====  CONFIRMED DATA UP =====")
+		return handleRXDataPacket(rxPackets, c)
 	default:
 		log.WithField("mtype", rxPackets[0].PHYPayload.MHDR.MType).Warning("unknown MType received")
 		return errors.New("unknown MType")
