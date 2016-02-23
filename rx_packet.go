@@ -107,9 +107,10 @@ func handleCollectedPackets(rxPackets loracontrol.RXPackets, c *loracontrol.Clie
 	case lorawan.JoinRequest:
 		log.Debug("join request")
 	case lorawan.UnconfirmedDataUp:
+		log.Info("=====  UNCONFIRMED DATA UP =====")
 		return handleRXDataPacket(rxPackets, c)
 	case lorawan.ConfirmedDataUp:
-		log.Debug("confirmed data up")
+		log.Info("=====  CONFIRMED DATA UP =====")
 	default:
 		log.WithField("mtype", rxPackets[0].PHYPayload.MHDR.MType).Warning("unknown MType received")
 		return errors.New("unknown MType")
@@ -133,19 +134,23 @@ func handleRXDataPacket(rxPackets loracontrol.RXPackets, client *loracontrol.Cli
 	nodeSession, err := client.NodeSession().Get(macPL.FHDR.DevAddr)
 	if err != nil {
 		if err == loracontrol.ErrObjectDoesNotExist {
-			return errors.New("node-session does not exist")
+			log.Error("Nodesession not found for DevAddr: ", macPL.FHDR.DevAddr)
 		}
 		return err
 	}
+
+	log.Info("= NodeSession found for devAddr: ", macPL.FHDR.DevAddr)
 
 	// get the node data from the database
 	node, err := client.Node().Get(nodeSession.DevEUI)
 	if err != nil {
 		if err == loracontrol.ErrObjectDoesNotExist {
-			return errors.New("node does not exist")
+			log.Error("Node not found for devEUI: ", nodeSession.DevEUI)
 		}
 		return err
 	}
+
+	log.Info("== Node found for devEUI: ", nodeSession.DevEUI)
 
 	// decrypt FRMPayload with NwkSKey when FPort == 0
 	if macPL.FPort == 0 {
@@ -162,6 +167,8 @@ func handleRXDataPacket(rxPackets loracontrol.RXPackets, client *loracontrol.Cli
 		return err
 	}
 
+	log.Info("=== Data has been sent to application")
+
 	// increment counter
 	nodeSession.FCntUp = nodeSession.FCntUp + 1
 	if err := client.NodeSession().UpdateExpire(nodeSession); err != nil {
@@ -170,5 +177,8 @@ func handleRXDataPacket(rxPackets loracontrol.RXPackets, client *loracontrol.Cli
 		}
 		return err
 	}
+
+	log.Info("==== FCntUp counter incremented")
+
 	return nil
 }
