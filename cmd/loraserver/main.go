@@ -6,10 +6,10 @@ import (
 	"os"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/blaet/loraserver"
+	apphttp "github.com/blaet/loraserver/application/http"
+	"github.com/blaet/loraserver/gateway/semtech"
 	"github.com/brocaar/loracontrol"
-	"github.com/brocaar/loraserver"
-	apphttp "github.com/brocaar/loraserver/application/http"
-	"github.com/brocaar/loraserver/gateway/semtech"
 	"github.com/codegangsta/cli"
 	"github.com/gorilla/mux"
 )
